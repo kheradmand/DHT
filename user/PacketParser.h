@@ -76,6 +76,18 @@ public:
 
 	static void* fetchDataHelper(void* arg);
 
+private:
+		void hexDump(Frame frame);
+		bool dumpEthernet(Frame frame);
+		bool dumpIPv4(Frame frame);
+		//static bool dumpARP(Frame frame);
+		//static bool dumpTCP(Frame frame);
+		bool dumpUDP(Frame frame);
+		//static bool dumpICMP(Frame frame);
+
+		bool dumpPacket(Frame frame,int interface,bool send);
+		void dumpMAC(byte* mac);
+
 };
 
 

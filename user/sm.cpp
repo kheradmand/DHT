@@ -29,6 +29,7 @@
 #include "OstreamManip.h"
 #include "common.h"
 #include "PacketParser.h"
+#include "PacketDumper.h"
 
 #include <netinet/in.h>
 #include <sys/time.h>
@@ -50,6 +51,7 @@ void SimulatedMachine::initialize () {
 
 	cout << "initializing folani" << endl;
 	sm = this;
+	//PacketDumper::sm = this;
 	string custom = getCustomInformation();
 	stringstream stream(custom);
 	stream >> me.port;
@@ -192,6 +194,8 @@ void SimulatedMachine::run () {
 				UNLOCK(sm->inNetwork_lock);
 
 			}else{ //i am the only one
+				//ERROR("i am the only one!");
+				LO cout << " i am the only one " << endl; ULO
 				successor.update(me.ip, me.port);
 				predecessor.update(me.ip, me.port);
 				LOCK(inNetwork_lock)
@@ -276,18 +280,17 @@ byte* SimulatedMachine::getGatewayMAC(){
 }
 
 
-/*
-bool SimulatedMachine::send(Frame frame, int interface) {
-	if (!PacketDumper::dumpPacket(frame, interface, 1)){
-		RETURN("packet is broken, sending failed",0);
-	}else{
-		if (sendFrame(frame, interface))
-			cout << green("packet sent successfully") << endl;
-		else
-			cout << red("packet send failed") << endl;
-		return 1;
-	}
+
+//bool SimulatedMachine::send(Frame frame, int interface) {
+//	//PacketDumper::dumpPacket(frame, interface, 1);
+//	if (sendFrame(frame, interface)){
+//		cout << green("packet sent successfully") << endl;
+//		return 1;
+//	}else{
+//		cout << red("packet send failed") << endl;
+//		return 0;
+//	}
+//}
     
-}
-*/
+
 

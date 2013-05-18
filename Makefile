@@ -25,7 +25,8 @@ USER_SOURCES = user/sm.cpp \
 	user/OstreamManip.cpp \
 	user/PacketParser.cpp \
 	user/DHTNodeInfo.cpp \
-	user/DHTNode.cpp
+	user/DHTNode.cpp \
+	
 	
 BASE_OBJ = ${BASE_SOURCES:.cpp=.o}
 BASE_OBJECTS = ${BASE_OBJ:.c=.o}
