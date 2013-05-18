@@ -66,7 +66,6 @@ void SimulatedMachine::initialize () {
 		gatewayMAC[i] = strtoul(token, NULL, 16);
 		token = strtok(NULL, ":");
 	}
-
 	int n;
 	stream >> n;
 	initial_possible_peers.resize(n);
@@ -117,6 +116,7 @@ void* startParsing(void* arg){
  * </code>
  */
 void SimulatedMachine::processFrame (Frame frame, int ifaceIndex) {
+
 	sm = this;
 	cout << "Frame received at iface " << ifaceIndex <<
 		" with length " << frame.length << endl;
@@ -150,6 +150,7 @@ void SimulatedMachine::run () {
 		string command;
 		commandstream >> command;
 		if (command == "join"){
+
 			if (inNetwork){
 				WARNING("already joined");
 				continue;
@@ -274,8 +275,14 @@ byte* SimulatedMachine::getInterfaceMAC (int interface) {
 	return iface[interface].mac;
 }
 ip_t SimulatedMachine::getInterfaceIP (int interface) {
-	if (interface<0 || interface >= countOfInterfaces)
-		EXIT("interface index out of bound",1);
+//	cout << "getting interface ip" << interface << flush;
+//	cout << " cout" << countOfInterfaces<< flush;
+//	if (interface<0 || interface >= countOfInterfaces)
+//		EXIT("interface index out of bound",1);
+	cout << "sas" << flush;
+	cout << iface << flush;
+	ip_t ret = iface[interface].getIp();
+	cout << "reting " << ret << flush;
 	return iface[interface].getIp();
 }
 

@@ -35,24 +35,38 @@ bool PacketParser::parseFrame(Frame frame){
 
 
 bool PacketParser::parseIPv4(Frame frame){
+	//pthread_mutex_lock(&sm->cout_lock);
+	cout << "parsing ip" << endl;
+	//pthread_mutex_unlock(&sm->cout_lock);
 	//int hlen = sizeof(ip);
 	ip* ip_header = (ip*)frame.data;
-	if (!verifyChecksum(ip_header))
+	cout << "vaa" << endl;
+	if (!verifyChecksum(ip_header)){
+		cout << "checshshsh" << endl;
 		RETURN("checksum not verified, discarding packet",0)
+	}
+	cout << "inja";
+	cout << flush;
 	ip_src = ntohl(ip_header->ip_src.s_addr);
 	ip_dst = ntohl(ip_header->ip_dst.s_addr);
-
-	if (ip_dst != sm->getInterfaceIP(GATEWAY_IFACE))
+	cout << "oonja" << flush;
+	cout << ip_dst << " - " << flush;
+	cout << sm->getInterfaceIP(GATEWAY_IFACE) << endl << flush;
+	if (ip_dst != sm->getInterfaceIP(GATEWAY_IFACE)){
+		cout << "ip dstssss" << endl << flush;
 		RETURN("packet is not for me, discarding packet",0)
-
-	if (ip_header->ip_p != IPPROTO_UDP)
+	}
+	cout << "harja" << flush;
+	if (ip_header->ip_p != IPPROTO_UDP){
+		cout << "samane" << endl << flush;
 		RETURN("expected UDP protocol, discarding packet",0)
+	}
 
     return parseUDP(Frame(frame.length-sizeof(ip),frame.data+sizeof(ip)));
 }
 
 bool PacketParser::parseUDP(Frame frame){
-
+	cout << "parsing udp" << endl;
 
     sr_udp* udp_header = (sr_udp*)(frame.data);
     port_src = ntohs(udp_header->port_src);
@@ -103,12 +117,14 @@ bool PacketParser::parseDHT(Frame frame){
 }
 
 bool PacketParser::parseDHTFindSuccessor(Frame frame){
-
+	cout << "received find successor packet" << endl;
 	if (flags & DHT_QUERY){ //FIND_SUCC Query
+		LO cout << "find suc query" << endl; ULO;
 		if (!sm->get_inNetwork())
 			RETURN("Node is not in DHT network but received FIND_SUCCESSOR Query, discarding",0);
 		if (inRange(key, sm->predecessor.key, sm->me.key, E, I)){
 			//I am the successor! pred=my pre suc=me
+			LO cout << "iam answer" << endl; ULO
 			pred_suc_info response;
 			response.pred.ip.s_addr = sm->predecessor.ip;
 			response.pred.port = sm->predecessor.port;
@@ -369,8 +385,9 @@ bool PacketParser::sendDHTPacket(Frame frame, ip_t target_ip, port_t target_port
 	sr_udp* udp_header = (sr_udp*)(payload+sizeof(sr_ethernet_hdr)+sizeof(ip));
 	dht_hdr* dht_header = (dht_hdr*)(payload+sizeof(sr_ethernet_hdr)+sizeof(ip)+sizeof(sr_udp));
 
-	memcpy(ether_header->ether_shost, sm->getInterfaceMAC(GATEWAY_IFACE), sizeof(ETHER_ADDR_LEN));
-	memcpy(ether_header->ether_dhost, sm->getGatewayMAC(), sizeof(ETHER_ADDR_LEN));
+
+	memcpy(ether_header->ether_shost, sm->getInterfaceMAC(GATEWAY_IFACE), ETHER_ADDR_LEN);
+	memcpy(ether_header->ether_dhost, sm->getGatewayMAC(), ETHER_ADDR_LEN);
 	ether_header->ether_type = htons(ETHERTYPE_IP);
 
 
@@ -545,10 +562,11 @@ bool PacketParser::verifyChecksum(ip* header){
 		sum += add;
 	}
 	sum += sum>>16;
-	//cout << yellow("sum") << HEXOUT(sum) << endl;
+	cout << yellow("sum") << HEXOUT(sum) << endl;
 	sum = ~sum;
 	if (sum & 0x0FFFF)
 		return 0;
+	cout << "good" << endl;
 	return 1;
 }
 
