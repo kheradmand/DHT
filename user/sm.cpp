@@ -29,7 +29,7 @@
 #include "OstreamManip.h"
 #include "common.h"
 #include "PacketParser.h"
-#include "PacketDumper.h"
+
 
 #include <netinet/in.h>
 #include <sys/time.h>
@@ -73,7 +73,9 @@ void SimulatedMachine::initialize () {
 	for (int i=0;i<n;i++){
 		string ipstr;
 		stream >> ipstr;
-		inet_pton(AF_INET,ipstr.c_str(),&initial_possible_peers[i].ip);
+		uint32 nip;
+		inet_pton(AF_INET,ipstr.c_str(),&nip);
+		initial_possible_peers[i].ip.s_addr = ntohl(nip);
 		stream >> initial_possible_peers[i].port;
 	}
 
@@ -158,8 +160,10 @@ void SimulatedMachine::run () {
 			for (int i=0;i<(int)initial_possible_peers.size();i++){
 				LO cout << "initial possible peer " << i << " with " << initial_possible_peers[i].ip.s_addr << " " << initial_possible_peers[i].port << endl; ULO
 
+				DHTNodeInfo whotoask(initial_possible_peers[i].ip.s_addr, initial_possible_peers[i].port);
 				LOCK(sm->findSuc_lock);
-				bool ret = parser.findSuccessor(me.key, successor, 1);
+
+				bool ret = parser.findSuccessor(me.key, whotoask, 1);
 				UNLOCK(sm->findSuc_lock);
 
 				if (ret){

@@ -407,7 +407,14 @@ bool PacketParser::sendFrame(Frame frame){
 	int c = 100;
 	dumpPacket(frame, GATEWAY_IFACE, 1);
 	while (c-- && !sm->sendFrame(frame, GATEWAY_IFACE));
-	return (c>=0);
+	if (c>=0){
+		cout << green("packet sent successfully") << endl;
+		return 1;
+	}else{
+		cout << red("packet send failed") << endl;
+		return 0;
+
+	}
 }
 
 void PacketParser::ntoh_pred_suc_info(pred_suc_info* dst,pred_suc_info* src){
