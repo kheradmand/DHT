@@ -41,11 +41,12 @@ private:
     bool parseDHTUpdate(Frame frame);
     bool parseDHTGet(Frame frame);
     bool parseDHTSet(Frame frame);
+    bool parseDHTTransfer(Frame frame);
 
     void fillDefaultDHTHeader(dht_hdr* header);
     bool sendDHTFindSuccessorResponse(pred_suc_info my_pred_suc);
     bool sendDHTFindSuccessorQuery(DHTNodeInfo target,bool init=0,byte* thekey=NULL);
-
+    bool sendDHTTransfer();
 
     bool sendDHTPacket(Frame frame, ip_t target_ip, port_t taget_port);
     bool sendFrame(Frame frame);
@@ -78,6 +79,10 @@ public:
 
 };
 
-
+struct dns_record
+{
+    uint32_t ip;    /* Ip */
+    uint8_t len;    /* Domain name length */
+};
 
 #endif

@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <map>
 #include <sys/time.h>
 using namespace std;
 
@@ -199,6 +200,31 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 	return 0;
 }
 
+bool PacketParser::parseDHTTransfer(Frame frame){
+	map<string, uint32_t> dns;
+
+	byte* ptr = frame.data;
+
+	uint8_t count = *ptr;
+	ptr++;
+
+	for(uint i = 0; i < count; i++){
+		dns_record* record = (dns_record*) ptr;
+		uint32_t ip = ntohl(record->ip);
+		
+		uint8_t len = record->len;
+		char buf[256];
+		memcpy(buf, record + sizeof(dns_record), len);
+		
+		string domain(buf);
+		dns[domain] = ip;
+
+		ptr += sizeof(dns_record) + len;
+	}
+
+	return 1;
+}
+
 bool PacketParser::parseDHTGet(Frame frame){
 /*
 	if (flags & DHT_QUERY){
@@ -279,6 +305,55 @@ bool PacketParser::sendDHTUpdate(bool added, bool init){
 		dht_header->init_port = htons(sm->me.port);
 		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
 	}
+
+	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
+}
+
+bool PacketParser::sendDHTTransfer(){
+	map<string, uint32_t> dns;
+	vector<string> transfers;
+
+	/*
+		RECORDHAYI KE BAYAD ENTEGHAL DADE BESHANO TOO VECTORE TRANSFERS BERIZ
+	*/
+
+	int size = 0;
+	for(uint i = 0; i < transfers.size(); i++){
+		size += transfers[i].length() + 1 + sizeof(dns_record);
+	}
+
+	byte payload[sizeof(dht_hdr)+ size];
+	Frame frame(sizeof(payload),payload);
+
+	dht_hdr* dht_header = (dht_hdr*)payload;
+
+	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
+
+	// store number of records
+	uint8_t length = transfers.size();
+	*(ptr) = length;
+	ptr++;
+
+	for(uint i = 0; i < transfers.size(); i++){
+		dns_record* record = (dns_record*) ptr;
+		record->ip = htonl(dns[transfers[i]]);
+		record->len = transfers[i].length() + 1;
+		memcpy(ptr + sizeof(dns_record), transfers[i].c_str(), transfers[i].length());
+		*(ptr + sizeof(dns_record) + transfers[i].length()) = '\0';
+		ptr += sizeof(dns_record) + transfers[i].length() + 1;
+	}
+
+
+	/* INASHO DOROS KON */
+
+	fillDefaultDHTHeader(dht_header);
+	dht_header->control = htons(DHT_OPER_TRANSFER);  /* INO NEMDUNAM CHEJURI MIZARI, DOROSTESH KON */
+
+	//if (init){
+		dht_header->init_ip.s_addr = htonl(sm->me.ip);
+		dht_header->init_port = htons(sm->me.port);
+		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	//}
 
 	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
 }
