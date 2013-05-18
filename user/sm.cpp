@@ -31,6 +31,7 @@
 #include "PacketParser.h"
 
 #include <netinet/in.h>
+#include <sys/time.h>
 #include <sstream>
 
 using namespace std;
@@ -54,9 +55,14 @@ void SimulatedMachine::initialize () {
 	me.update(me.ip, me.port);
 	string gatewayMacStr;
 	stream >> gatewayMacStr;
-	for (int i=0;i<ETHER_ADDR_LEN;i++){
-		//TOOD mac str to mac
+
+	char* token = strtok((char*)gatewayMacStr.c_str(), " .:\n");
+
+	for(int i=0;i<ETHER_ADDR_LEN;i++){
+		token = strtok(NULL, " .:\n");
+		gatewayMAC[i] = strtoul(token, NULL, 16);
 	}
+
 	int n;
 	stream >> n;
 	initial_possible_peers.resize(n);
@@ -142,7 +148,16 @@ void SimulatedMachine::run () {
 			for (int i=0;i<(int)initial_possible_peers.size();i++){
 				LO cout << "initial possible peer " << i << " with " << initial_possible_peers[i].ip.s_addr << " " << initial_possible_peers[i].port << endl; ULO
 
-				//TODO
+				LOCK(sm->findSuc_lock);
+				bool ret = parser.findSuccessor(me.key, successor, 1);
+				UNLOCK(sm->findSuc_lock);
+
+				if (ret){
+					predecessor.update(find_suc_ans.pred.ip.s_addr, find_suc_ans.pred.port);
+					successor.update(find_suc_ans.suc.ip.s_addr, find_suc_ans.suc.port);
+					end = 1;
+					break;
+				}
 
 			}
 			perceivedN++;

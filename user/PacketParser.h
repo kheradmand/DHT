@@ -64,7 +64,7 @@ public:
 	bool verifyChecksum(ip* header);
 	void addChecksum(ip* header);
 
-	bool findSuccessor(byte* thekey,DHTNodeInfo whotoask);
+	bool findSuccessor(byte* thekey,DHTNodeInfo whotoask, bool timed=0);
 
 	bool sendDHTUpdate(bool added, bool init=0);
 

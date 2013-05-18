@@ -2,8 +2,10 @@
 #include "common.h"
 #include "sr_protocol.h"
 #include "sm.h"
+
 #include <iostream>
 #include <cmath>
+#include <sys/time.h>
 using namespace std;
 
 PacketParser::PacketParser(SimulatedMachine* _sm){
@@ -421,15 +423,25 @@ void PacketParser::updateFinger(uint32 n){
 }
 
 //in tabe vaghti barmigarde findSuc_lock lock hastesh
-bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask){
+bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed){
 	LOCK(sm->findSuc_lock);
-	bool rc = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
+	bool b = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
 	DHTNodeInfo info(0,0);
+	int rc;
 	do {
-		pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
+		if (timed){
+			timeval now;
+			gettimeofday(&now, NULL);
+			timespec t;
+			t.tv_sec = now.tv_sec + 3;
+			t.tv_nsec = 0;
+			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
+			break;
+		}else
+			rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
 		info.update(sm->find_suc_ans.suc.ip.s_addr,sm->find_suc_ans.suc.port);
 	} while (memcmp(thekey, info.key, DHT_KEY_SIZE)!=0);
-	return rc;
+	return (rc == 0);
 }
 
 bool PacketParser::verifyChecksum(ip* header){
