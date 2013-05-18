@@ -47,6 +47,8 @@ SimulatedMachine::~SimulatedMachine () {
 }
 
 void SimulatedMachine::initialize () {
+
+	cout << "initializing folani" << endl;
 	sm = this;
 	string custom = getCustomInformation();
 	stringstream stream(custom);
@@ -55,12 +57,12 @@ void SimulatedMachine::initialize () {
 	me.update(me.ip, me.port);
 	string gatewayMacStr;
 	stream >> gatewayMacStr;
-
-	char* token = strtok((char*)gatewayMacStr.c_str(), " .:\n");
+	cout << "before parsing mac " << gatewayMacStr << endl;
+	char* token = strtok((char*)gatewayMacStr.c_str(), ":");
 
 	for(int i=0;i<ETHER_ADDR_LEN;i++){
-		token = strtok(NULL, " .:\n");
 		gatewayMAC[i] = strtoul(token, NULL, 16);
+		token = strtok(NULL, ":");
 	}
 
 	int n;
@@ -75,6 +77,8 @@ void SimulatedMachine::initialize () {
 
 	successor.update(0, 0);
 	predecessor.update(0, 0);
+
+	cout << "finished initializing folani" << endl;
 }
 
 SimulatedMachine* sm;
@@ -142,6 +146,10 @@ void SimulatedMachine::run () {
 		string command;
 		commandstream >> command;
 		if (command == "join"){
+			if (inNetwork){
+				WARNING("already joined");
+				continue;
+			}
 			//find succesor and predecessor
 			WARNING("trying to join network");
 			bool end = 0;
@@ -194,6 +202,10 @@ void SimulatedMachine::run () {
 			}
 			WARNING("node joined DHT network");
 		}else if (command == "leave"){
+			if (!inNetwork){
+				WARNING("already out");
+				continue;
+			}
 			if (perceivedN < 2){
 				//clearCache();
 			}else{
@@ -219,7 +231,18 @@ void SimulatedMachine::run () {
 		}else if (command == "get"){
 		
 		}else if (command == "print"){
-		
+			char succ_ip_str[INET_ADDRSTRLEN];
+			char pred_ip_str[INET_ADDRSTRLEN];
+			uint32 suc = htonl(successor.ip);
+			uint32 pred = htonl(predecessor.ip);
+			inet_ntop(AF_INET, &suc ,succ_ip_str,sizeof(succ_ip_str));
+			inet_ntop(AF_INET, &pred ,pred_ip_str,sizeof(pred_ip_str));
+			LO
+			cout << cyan(">Predecessor IP:\t") << pred_ip_str << endl;
+			cout << cyan(">Successor IP:\t\t") << succ_ip_str << endl;
+			cout << cyan(">DNS table:") << endl;
+			//TODO
+			ULO
 		}else{
 			cout << red("unsupported command") << endl;	
 		}

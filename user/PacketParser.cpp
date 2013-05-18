@@ -426,17 +426,20 @@ void PacketParser::updateFinger(uint32 n){
 bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed){
 	LOCK(sm->findSuc_lock);
 	bool b = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
+	LO cout << "sendDHTFindSuccessorQuery returned with " << b << endl; ULO
 	DHTNodeInfo info(0,0);
 	int rc;
+
+	timeval now;
+	gettimeofday(&now, NULL);
+	timespec t;
+	t.tv_sec = now.tv_sec + 3;
+	t.tv_nsec = 0;
+
 	do {
 		if (timed){
-			timeval now;
-			gettimeofday(&now, NULL);
-			timespec t;
-			t.tv_sec = now.tv_sec + 3;
-			t.tv_nsec = 0;
 			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
-			break;
+			if (rc) break;
 		}else
 			rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
 		info.update(sm->find_suc_ans.suc.ip.s_addr,sm->find_suc_ans.suc.port);
