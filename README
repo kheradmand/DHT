@@ -1,0 +1,16 @@
+			In the name of GOD
+
+This is the Client Framework (CF) of PARTOV system.
+Before any other work open the "info.sh" file with an editor
+and type your username and password there.
+
+Then you can use the .sh files for running your programs as follows:
+ - The "new.sh" for instantiating a new topology for you.
+ - The "free.sh" for releasing the previously assigned topology instance.
+    * Do not forget to free the instance when your simulation finished.
+
+ - The "node1.sh" till "node4.sh" files for connecting your program to virtual peer nodes.
+
+At the end, do not forget to change/adapt the Makefile so it creates "peer.out" correctly
+when the "make" command is issued.
+
