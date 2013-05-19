@@ -49,7 +49,7 @@ public:
 	};
 	static void parseArguments (int argc, char *argv[]);
     
-
+	friend class PacketParser;
     
     byte* getInterfaceMAC(int interface);
 	ip_t getInterfaceIP(int interface);

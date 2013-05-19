@@ -532,17 +532,19 @@ void PacketParser::updateFinger(uint32 n){
 	ERROR("started to update finger!")
 	LO cout << "N is " << n << endl; ULO
 	if (n == 0){
-		pthread_exit(NULL);
+		return;
 	}
 	int m = log2((double)n);
+	LO cout << "aakala " << sm->finger.size() << endl; ULO
 	int lastSize = sm->finger.size();
-	sm->finger.resize(m+1,DHTNodeInfo(0,0));
+	sm->finger.resize(m+1);
 	sm->finger[0].update(sm->successor.ip, sm->successor.port);
 
 	if (n==1){
 		for (int i=0;i<(int)sm->finger.size();i++)
 			sm->finger[i].update(sm->me.ip, sm->me.port);
-		pthread_exit(NULL);
+		//pthread_exit(NULL);
+		return;
 	}
 
 	int mn = min(m, lastSize);
@@ -582,16 +584,19 @@ void PacketParser::updateFinger(uint32 n){
 		sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 		UNLOCK(sm->findSuc_lock);
 	}
-	pthread_exit(NULL);
+	ERROR("update finger finished")
+	//pthread_exit(NULL);
 }
 
 //in tabe vaghti barmigarde findSuc_lock lock hastesh
 bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed){
 	ERROR("staring find successor")
+	LO cout << flush; ULO
 	LOCK(sm->findSuc_lock)
 	ERROR("locked find successor")
+	LO cout << flush; ULO
 	bool b = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
-	LO cout << "sendDHTFindSuccessorQuery returned with " << b << endl; ULO
+	LO cout << "sendDHTFindSuccessorQuery returned with " << b << endl; cout << flush; ULO
 	//DHTNodeInfo info(0,0);
 	int rc;
 

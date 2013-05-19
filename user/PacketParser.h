@@ -10,7 +10,7 @@ class SimulatedMachine;
 
 class PacketParser{
 private:
-	SimulatedMachine* sm;
+
 	bool sendFrame(Frame frame, ip_t dst);
     
     ip_t ip_src;
@@ -31,6 +31,7 @@ private:
 
     
 public:
+    SimulatedMachine* sm;
 	PacketParser(SimulatedMachine* _sm);
 	bool parseFrame(Frame frame);
 private:
@@ -56,12 +57,14 @@ private:
     byte* getFingerStart(int index);
 
 
-    void updateFinger(uint32 n);
+
 
     void ntoh_pred_suc_info(pred_suc_info* dst,pred_suc_info* src);
     void hton_pred_suc_info(pred_suc_info* dst,pred_suc_info* src);
     bool inRange(byte* key,byte* from, byte* to, bool from_inc, bool to_inc);
 public:
+    void updateFinger(uint32 n);
+
 	bool verifyChecksum(ip* header);
 	void addChecksum(ip* header);
 

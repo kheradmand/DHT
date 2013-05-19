@@ -200,8 +200,10 @@ void SimulatedMachine::run () {
 				PacketParser::updateFingerHelperParameter param;
 				param.pp = &parser;
 				param.n = perceivedN;
-				pthread_create(&updateFinger_thread, &attr, PacketParser::updateFingerHelper, (void*)(&param));
-				pthread_join(updateFinger_thread, NULL);
+				//pthread_create(&updateFinger_thread, &attr, PacketParser::updateFingerHelper, (void*)(&param));
+				//pthread_join(updateFinger_thread, NULL);
+				//PacketParser::updateFingerHelper((void*)(&param));
+				parser.updateFinger(perceivedN);
 
 				//fetch data from successor
 				//if (perceivedN > 1){
