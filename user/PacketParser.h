@@ -63,7 +63,7 @@ private:
     void hton_pred_suc_info(pred_suc_info* dst,pred_suc_info* src);
     bool inRange(byte* key,byte* from, byte* to, bool from_inc, bool to_inc);
 public:
-    void updateFinger(uint32 n);
+    void updateFinger(uint32 n, bool deleted=0);
 
 	bool verifyChecksum(ip* header);
 	void addChecksum(ip* header);

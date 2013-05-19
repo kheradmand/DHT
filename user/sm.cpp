@@ -165,7 +165,7 @@ void SimulatedMachine::run () {
 		commandstream >> command;
 		if (command == "join"){
 
-			if (inNetwork){
+			if (get_inNetwork()){
 				WARNING("already joined");
 				continue;
 			}
@@ -211,6 +211,9 @@ void SimulatedMachine::run () {
 				//	pthread_create(&fetchData_thread, &attr, PacketParser::fetchDataHelper, NULL);
 				//	pthread_join(fetchData_thread, NULL);
 				//}
+				LOCK(sm->inNetwork_lock)
+				inNetwork = 1;
+				UNLOCK(sm->inNetwork_lock)
 
 				//send update to predecessor
 				WARNING("sending update to pred")
@@ -232,16 +235,13 @@ void SimulatedMachine::run () {
 			}
 			WARNING("node joined DHT network");
 		}else if (command == "leave"){
-			if (!inNetwork){
+			if (!get_inNetwork()){
 				WARNING("already out");
 				continue;
 			}
-			if (perceivedN < 2){
-				//clearCache();
-			}else{
+			if (perceivedN >=2){
 				//push data to successor
 				//TODO
-				//clearCache();
 
 				//send update to predecessor
 				perceivedN--;
@@ -249,11 +249,17 @@ void SimulatedMachine::run () {
 				parser.sendDHTUpdate(0,1);
 				pthread_cond_wait(&sm->inNetwork_cond, &sm->inNetwork_lock);
 				UNLOCK(sm->inNetwork_lock);
+			}else{
+				LOCK(sm->inNetwork_lock);
+				inNetwork = 0;
+				UNLOCK(sm->inNetwork_lock);
 			}
+
 			perceivedN = 0;
 			finger.resize(0);
 			successor.update(0, 0);
 			predecessor.update(0, 0);
+			//TODO: clearCache
 
 			WARNING("node left DHT network");
 		}else if (command == "set"){

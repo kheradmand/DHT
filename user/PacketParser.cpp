@@ -178,7 +178,7 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			//elaat ro az suc begire
 			//in network hesab she
 			LOCK(sm->inNetwork_lock);
-			sm->inNetwork = 1;
+			//sm->inNetwork = 1; //in kari vaghti eleati az baghali gerefim anjam midim!
 			pthread_cond_signal(&sm->inNetwork_cond);
 			UNLOCK(sm->inNetwork_lock);
 			return 1;
@@ -191,12 +191,13 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			if (N == 2 || inRange(key, sm->me.key, sm->successor.key, E, E))
 				sm->successor.update(init_ip,init_port);
 
-			updateFingerHelperParameter param;
-			param.pp = this;
-			param.n = N;
-			int rc = pthread_create(&updateFinger_thread, &sm->attr, updateFingerHelper, (void*)(&param));
-			if (rc)
-				RETURN("failed creating new thread",0);
+			//updateFingerHelperParameter param;
+			//param.pp = this;
+			//param.n = N;
+			//int rc = pthread_create(&updateFinger_thread, &sm->attr, updateFingerHelper, (void*)(&param));
+			//if (rc)
+			//	RETURN("failed creating new thread",0);
+			updateFinger(N);
 
 			return sendDHTUpdate(1);
 		}
@@ -214,20 +215,31 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			pred_suc_info pred_suc;
 			ntoh_pred_suc_info(&pred_suc, (pred_suc_info*)frame.data);
 
-			//check if pred
-			if (N==1 || inRange(key, sm->predecessor.key, sm->me.key, E, E))
-				sm->predecessor.update(pred_suc.pred.ip.s_addr, pred_suc.pred.port);
-			//check if suc
-			if (N==1 || inRange(key, sm->me.key, sm->successor.key, E, E))
-				sm->successor.update(pred_suc.suc.ip.s_addr, pred_suc.suc.port);
-			updateFingerHelperParameter param;
-			param.pp = this;
-			param.n = N;
-			int rc = pthread_create(&updateFinger_thread, &sm->attr, updateFingerHelper, (void*)(&param));
-			if (rc)
-				RETURN("failed creating new thread",0)
+			if (N==1){
+				sendDHTUpdate(0);
+				sm->predecessor.update(sm->me.ip, sm->me.port);
+				sm->successor.update(sm->me.ip, sm->me.port);
+			}else{
+				//check if pred
+				if (inRange(key, sm->predecessor.key, sm->me.key, E, E))
+					sm->predecessor.update(pred_suc.pred.ip.s_addr, pred_suc.pred.port);
+				//check if suc
+				if (inRange(key, sm->me.key, sm->successor.key, E, E))
+					sm->successor.update(pred_suc.suc.ip.s_addr, pred_suc.suc.port);
+			}
 
-			return sendDHTUpdate(1);
+
+			//updateFingerHelperParameter param;
+			//param.pp = this;
+			//param.n = N;
+			//int rc = pthread_create(&updateFinger_thread, &sm->attr, updateFingerHelper, (void*)(&param));
+			//if (rc)
+			//	RETURN("failed creating new thread",0)
+			updateFinger(N, 1);
+			if (N==1)
+				return 1;
+			else
+				return sendDHTUpdate(0);
 		}
 	}
 	return 0;
@@ -471,13 +483,13 @@ bool PacketParser::inRange(byte* key,byte* from, byte* to, bool from_inc, bool t
 	int ft = memcmp(from, to, DHT_KEY_SIZE);
 	int comp = memcmp(key, from, DHT_KEY_SIZE);
 
-//	LO
-//	cout << "checking in range" << endl;
+	LO
+	cout << "checking in range" << endl;
 //	DHTNodeInfo::dumpKey(key);
 //	DHTNodeInfo::dumpKey(from);
 //	DHTNodeInfo::dumpKey(to);
 //	cout << "ft " << ft << " cmop " << comp << endl;
-//	ULO
+	ULO
 
 	if (ft == 0){ //kolle baze
 		if (!from_inc && !to_inc && comp == 0)
@@ -528,7 +540,7 @@ static void* fetchDataHelper(void* arg){
 
 }
 
-void PacketParser::updateFinger(uint32 n){
+void PacketParser::updateFinger(uint32 n, bool deleted){
 	ERROR("started to update finger!")
 	LO cout << "N is " << n << endl; ULO
 	if (n == 0){
@@ -550,8 +562,9 @@ void PacketParser::updateFinger(uint32 n){
 	int mn = min(m, lastSize);
 	LO cout << " mn " << mn << " m " << m  << "!" << endl; ULO
 	for (int i=0;i<mn-1;i++){
-		LO cout << "kkkkkkkkkkkk" << endl;
-		if (inRange(getFingerStart(i+1), sm->me.key, sm->finger[i].key, I, E)){
+		LO cout << "kkkkkkkkkkkk" << endl; ULO
+		if (inRange(getFingerStart(i+1), sm->me.key, sm->finger[i].key, I, E) &&
+				(!deleted || memcmp(sm->finger[i].key, key/*kare khatarnakie!*/, DHT_KEY_SIZE)!=0)){
 			LO cout << "figer " << i << " is aprop for " << i+1 << endl; ULO
 			sm->finger[i+1].update(sm->finger[i].ip, sm->finger[i].port);
 		}else{
@@ -572,7 +585,7 @@ void PacketParser::updateFinger(uint32 n){
 	}
 	LO cout << "what the " << endl; ULO
 	for (int i=mn;i<(int)sm->finger.size();i++){
-		LO cout << "kkkkkasasasaskkkkkkk" << i << endl; ULO
+		LO cout << "kkkkkasasasaskkkkkkk" << i << endl; cout << flush; ULO
 		//bool ret = findSuccessor(getFingerStart(i), sm->successor);
 		//if (!ret)
 		//	ERROR("finding successor in finger update failed")
