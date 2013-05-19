@@ -26,6 +26,12 @@ DHTNode::DHTNode(){
     pthread_mutex_init(&findSuc_lock, NULL);
     pthread_cond_init(&findSuc_cond, NULL);
 
+    pthread_mutex_init(&transfer_lock, NULL);
+    pthread_cond_init(&transfer_cond, NULL);
+
+    pthread_mutex_init(&ack_lock, NULL);
+    pthread_cond_init(&ack_cond, NULL);
+
 
 }
 

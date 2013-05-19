@@ -209,11 +209,11 @@ void SimulatedMachine::run () {
 				parser.updateFinger(perceivedN);
 
 				//fetch data from successor
-				//if (perceivedN > 1){
-				//	pthread_t fetchData_thread;
-				//	pthread_create(&fetchData_thread, &attr, PacketParser::fetchDataHelper, NULL);
-				//	pthread_join(fetchData_thread, NULL);
-				//}
+				LOCK(transfer_lock);
+				parser.sendDHTTransferQuery();
+				pthread_cond_wait(&transfer_cond, &transfer_lock);
+				UNLOCK(transfer_lock);
+
 				LOCK(sm->inNetwork_lock)
 				inNetwork = 1;
 				UNLOCK(sm->inNetwork_lock)
@@ -244,7 +244,21 @@ void SimulatedMachine::run () {
 			}
 			if (perceivedN >=2){
 				//push data to successor
-				//TODO
+				LOCK(sm->ack_lock);
+//				int rc;
+//				do{
+//					timeval now;
+//					gettimeofday(&now, NULL);
+//					timespec t;
+//					t.tv_sec = now.tv_sec + WAIT_TIME;
+//					t.tv_nsec = 0;
+//					parser.sendDHTTransfer(1);
+//					LO cout << "wating for ack" << endl; ULO
+//					rc = pthread_cond_timedwait(&sm->ack_cond, &sm->ack_lock, &t);
+//				}while( rc == 60);
+				parser.sendDHTTransfer(1);
+				pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
+				UNLOCK(sm->ack_lock);
 
 				//send update to predecessor
 				perceivedN--;
@@ -262,7 +276,7 @@ void SimulatedMachine::run () {
 			finger.resize(0);
 			successor.update(0, 0);
 			predecessor.update(0, 0);
-			//TODO: clearCache
+			dnsChache.clear();
 
 			WARNING("node left DHT network");
 		}else if (command == "set"){
@@ -292,7 +306,8 @@ void SimulatedMachine::run () {
 				cout << "\t" << i << ":\t" << finger_ip_str << "\t" << finger[i].port << endl;
 			}
 			cout << cyan(">DNS table:") << endl;
-			//TODO
+			for (typeof(dnsChache.begin()) i=dnsChache.begin();i!=dnsChache.end();i++)
+				cout << "\t" << i->first << "\t\t" << i->second << endl;
 			ULO
 		}else{
 			cout << red("unsupported command") << endl;	

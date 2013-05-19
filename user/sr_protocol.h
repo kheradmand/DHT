@@ -186,17 +186,14 @@ struct dht_hdr{
     uint32_t n;
 #define DHT_QUERY	0x8000
 #define DHT_ADDED	0x4000
-#define DHT_FOUND	0x2000
-#define DHT_BULK	0x1000
-#define DHT_LAST	0x0800
+#define DHT_ACK		0x2000
 #define DHT_OPER_MASK	0x00FF
 } __attribute__ ((packed)) ;
 
 #define DHT_OPER_FIND_SUCC	1
 #define DHT_OPER_UPDATE		2
-#define DHT_OPER_GET		3
-#define	DHT_OPER_SET		4
-#define DHT_OPER_TRANSFER   5
+#define DHT_OPER_TRANSF		3
+#define	DHT_OPER_DNS		4
 
 
 

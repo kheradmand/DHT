@@ -5,6 +5,7 @@
 #include "common.h"
 
 #include <vector>
+#include <map>
 using namespace std;
 
 class DHTNode{
@@ -16,6 +17,7 @@ public:
 	DHTNodeInfo me,successor,predecessor;
 	vector<DHTNodeInfo> finger;
 	vector<ip_port> initial_possible_peers;
+	map<string, uint32> dnsChache;
 
 	int perceivedN;
     
@@ -37,6 +39,10 @@ public:
     
     pthread_mutex_t findSuc_lock;
     pthread_cond_t findSuc_cond;
+    pthread_mutex_t transfer_lock;
+    pthread_cond_t transfer_cond;
+    pthread_mutex_t ack_lock;
+    pthread_cond_t ack_cond;
 
     pthread_mutex_t send_lock;
     pthread_mutex_t cout_lock;

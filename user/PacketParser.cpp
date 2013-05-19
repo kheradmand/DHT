@@ -8,6 +8,7 @@
 #include <map>
 #include <sys/time.h>
 #include <pthread.h>
+#include <openssl/sha.h>
 using namespace std;
 
 PacketParser::PacketParser(SimulatedMachine* _sm){
@@ -96,11 +97,11 @@ bool PacketParser::parseDHT(Frame frame){
         	sm->perceivedN = N;
             return parseDHTUpdate(payload);
             break;
-        case DHT_OPER_GET:
-            return parseDHTGet(payload);
+        case DHT_OPER_TRANSF:
+            return parseDHTTransfer(payload);
             break;
-        case DHT_OPER_SET:
-            return parseDHTSet(payload);
+        case DHT_OPER_DNS:
+           // return parseDHTDNS(payload); //TODO
             break;
         default:
             RETURN("unexpected DHT operation",0);
@@ -246,44 +247,64 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 }
 
 bool PacketParser::parseDHTTransfer(Frame frame){
-	map<string, uint32_t> dns;
 
-	byte* ptr = frame.data;
+	WARNING("received DHT bulk Transfer");
+	if (control & DHT_ACK){
+		WARNING("received ack")
+		LOCK(sm->ack_lock);
+		pthread_cond_signal(&sm->ack_cond);
+		UNLOCK(sm->ack_lock)
+		return 1;
+	}else if (control & DHT_QUERY){
+		WARNING("query to trasfer information");
 
-	uint8_t count = *ptr;
-	ptr++;
+		LOCK(sm->ack_lock);
+//				int rc;
+//				do{
+//					timeval now;
+//					gettimeofday(&now, NULL);
+//					timespec t;
+//					t.tv_sec = now.tv_sec + WAIT_TIME;
+//					t.tv_nsec = 0;
+//					parser.sendDHTTransfer(1);
+//					LO cout << "wating for ack" << endl; ULO
+//					rc = pthread_cond_timedwait(&sm->ack_cond, &sm->ack_lock, &t);
+//				}while( rc == 60);
+		sendDHTTransfer();
+		pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
+		UNLOCK(sm->ack_lock);
+		return 1;
 
-	for(uint i = 0; i < count; i++){
-		dns_record* record = (dns_record*) ptr;
-		uint32_t ip = ntohl(record->ip);
-		
-		uint8_t len = record->len;
-		char buf[256];
-		memcpy(buf, record + sizeof(dns_record), len);
-		
-		string domain(buf);
-		dns[domain] = ip;
+	}else{
+		WARNING("inforrmation to store")
+		byte* ptr = frame.data;
 
-		ptr += sizeof(dns_record) + len;
+		uint8_t count = *ptr;
+		ptr++;
+
+		for(uint i = 0; i < count; i++){
+			dns_record* record = (dns_record*) ptr;
+			uint32_t ip = ntohl(record->ip);
+
+			uint8_t len = record->len;
+			char buf[256];
+			memcpy(buf, record + sizeof(dns_record), len);
+
+			string domain(buf);
+			LO cout << "adding " << domain << " " << ip << endl; ULO
+			sm->dnsChache[domain] = ip;
+
+			ptr += sizeof(dns_record) + len;
+		}
+
+		sendDHTTransferACK();
+
+		LOCK(sm->transfer_lock);
+		pthread_cond_signal(&sm->transfer_cond);
+		UNLOCK(sm->transfer_lock)
+
+		return 1;
 	}
-
-	return 1;
-}
-
-bool PacketParser::parseDHTGet(Frame frame){
-/*
-	if (control & DHT_QUERY){
-
-	}else {
-		if (control & DHT_FOUND)
-	}
-*/
-	return 0;
-}
-
-
-bool PacketParser::parseDHTSet(Frame frame){
-	return 0;
 }
 
 void PacketParser::fillDefaultDHTHeader(dht_hdr* header){
@@ -358,13 +379,17 @@ bool PacketParser::sendDHTUpdate(bool added, bool init){
 	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
 }
 
-bool PacketParser::sendDHTTransfer(){
-	map<string, uint32_t> dns;
+
+bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
+	ERROR("want to bult transfer information (send dht transfer)");
 	vector<string> transfers;
 
-	/*
-		RECORDHAYI KE BAYAD ENTEGHAL DADE BESHANO TOO VECTORE TRANSFERS BERIZ
-	*/
+	byte temp[DHT_KEY_SIZE];
+	for (typeof(sm->dnsChache.begin()) i=sm->dnsChache.begin(); i!=sm->dnsChache.end();i++){
+		SHA1((unsigned char*)i->first.c_str(), i->first.length(), (unsigned char*)temp);
+		if (fromMetoSuc || inRange(temp, key, sm->me.key, I, E))
+			transfers.push_back(i->first);
+	}
 
 	int size = 0;
 	for(uint i = 0; i < transfers.size(); i++){
@@ -375,6 +400,10 @@ bool PacketParser::sendDHTTransfer(){
 	Frame frame(sizeof(payload),payload);
 
 	dht_hdr* dht_header = (dht_hdr*)payload;
+	dht_header->init_ip.s_addr = htonl(sm->me.ip);
+	dht_header->init_port = htons(sm->me.port);
+	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	dht_header->control = htons(DHT_OPER_TRANSF); //DHT_QUERy nist => asnwere
 
 	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
 
@@ -385,26 +414,41 @@ bool PacketParser::sendDHTTransfer(){
 
 	for(uint i = 0; i < transfers.size(); i++){
 		dns_record* record = (dns_record*) ptr;
-		record->ip = htonl(dns[transfers[i]]);
+		record->ip = htonl(sm->dnsChache[transfers[i]]);
 		record->len = transfers[i].length() + 1;
 		memcpy(ptr + sizeof(dns_record), transfers[i].c_str(), transfers[i].length());
 		*(ptr + sizeof(dns_record) + transfers[i].length()) = '\0';
 		ptr += sizeof(dns_record) + transfers[i].length() + 1;
 	}
 
+	//return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
+	return sendDHTPacket(frame, (fromMetoSuc? sm->successor.ip : init_ip), (fromMetoSuc? sm->successor.port : init_port));
+}
 
-	/* INASHO DOROS KON */
 
+bool PacketParser::sendDHTTransferACK(){
+	byte payload[sizeof(dht_hdr)];
+	Frame frame(sizeof(payload),payload);
+
+	dht_hdr* dht_header = (dht_hdr*)payload;
 	fillDefaultDHTHeader(dht_header);
-	dht_header->control = htons(DHT_OPER_TRANSFER);  /* INO NEMDUNAM CHEJURI MIZARI, DOROSTESH KON */
+	dht_header->control = htons(DHT_OPER_TRANSF | DHT_ACK);
+	return sendDHTPacket(frame, init_ip, init_port);
+}
 
-	//if (init){
-		dht_header->init_ip.s_addr = htonl(sm->me.ip);
-		dht_header->init_port = htons(sm->me.port);
-		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
-	//}
 
-	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
+bool PacketParser::sendDHTTransferQuery(){
+	byte payload[sizeof(dht_hdr)];
+	Frame frame(sizeof(payload),payload);
+
+	dht_hdr* dht_header = (dht_hdr*)payload;
+	dht_header->init_ip.s_addr = htonl(sm->me.ip);
+	dht_header->init_port = htons(sm->me.port);
+	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	dht_header->control = htons(DHT_OPER_TRANSF | DHT_QUERY);
+
+	return sendDHTPacket(frame, sm->successor.ip, sm->successor.port);
+
 }
 
 bool PacketParser::sendDHTPacket(Frame frame, ip_t target_ip, port_t target_port){
@@ -541,9 +585,6 @@ void* PacketParser::updateFingerHelper(void* arg){
 	return NULL;
 }
 
-static void* fetchDataHelper(void* arg){
-
-}
 
 void PacketParser::updateFinger(uint32 n, bool deleted){
 	ERROR("started to update finger!")
@@ -621,7 +662,7 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 	timeval now;
 	gettimeofday(&now, NULL);
 	timespec t;
-	t.tv_sec = now.tv_sec + 1; //movaghat //TODO avazesh kon
+	t.tv_sec = now.tv_sec + WAIT_TIME;
 	t.tv_nsec = 0;
 
 	bool cont = 1;

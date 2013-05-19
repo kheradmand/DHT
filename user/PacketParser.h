@@ -42,14 +42,14 @@ private:
     bool parseDHT(Frame frame);
     bool parseDHTFindSuccessor(Frame frame);
     bool parseDHTUpdate(Frame frame);
-    bool parseDHTGet(Frame frame);
-    bool parseDHTSet(Frame frame);
     bool parseDHTTransfer(Frame frame);
+    bool parseDHTDNS(Frame frame);
 
     void fillDefaultDHTHeader(dht_hdr* header);
     bool sendDHTFindSuccessorResponse(pred_suc_info my_pred_suc);
     bool sendDHTFindSuccessorQuery(DHTNodeInfo target,bool init=0,byte* thekey=NULL);
-    bool sendDHTTransfer();
+
+    bool sendDHTTransferACK();
 
     bool sendDHTPacket(Frame frame, ip_t target_ip, port_t taget_port);
     bool sendFrame(Frame frame);
@@ -65,6 +65,9 @@ private:
     void hton_pred_suc_info(pred_suc_info* dst,pred_suc_info* src);
     bool inRange(byte* key,byte* from, byte* to, bool from_inc, bool to_inc);
 public:
+    bool sendDHTTransferQuery();
+
+    bool sendDHTTransfer(bool fromMetoSuc=0);
     void updateFinger(uint32 n, bool deleted=0);
 
 	bool verifyChecksum(ip* header);
@@ -80,7 +83,7 @@ public:
 		int n;
 	};
 
-	static void* fetchDataHelper(void* arg);
+
 
 private:
 		void hexDump(Frame frame);

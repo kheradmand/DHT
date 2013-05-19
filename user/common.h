@@ -28,6 +28,8 @@ using namespace std;
 #define DHT_KEY_SIZE 20
 #define MAX_LOG_NODES 160
 
+#define WAIT_TIME 1
+
 #define E 0 //exclusive
 #define I 1 //inlcusive
 
