@@ -192,11 +192,11 @@ struct dht_hdr{
 #define DHT_OPER_MASK	0x00FF
 } __attribute__ ((packed)) ;
 
-#define DHT_OPER_FIND_SUCC	0
-#define DHT_OPER_UPDATE		1
-#define DHT_OPER_GET		2
-#define	DHT_OPER_SET		3
-#define DHT_OPER_TRANSFER   4
+#define DHT_OPER_FIND_SUCC	1
+#define DHT_OPER_UPDATE		2
+#define DHT_OPER_GET		3
+#define	DHT_OPER_SET		4
+#define DHT_OPER_TRANSFER   5
 
 
 

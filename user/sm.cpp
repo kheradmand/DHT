@@ -57,15 +57,21 @@ void SimulatedMachine::initialize () {
 	stream >> me.port;
 	me.ip = getInterfaceIP(GATEWAY_IFACE);
 	me.update(me.ip, me.port);
+	LO cout << "ahmag " << me.ip << " boz " << getInterfaceIP(GATEWAY_IFACE) << endl; ULO;
 	string gatewayMacStr;
 	stream >> gatewayMacStr;
 	cout << "before parsing mac " << gatewayMacStr << endl;
 	char* token = strtok((char*)gatewayMacStr.c_str(), ":");
 
 	for(int i=0;i<ETHER_ADDR_LEN;i++){
+		LO cout << "TOKEN " <<  strtoul(token, NULL, 16) << endl; ULO
 		gatewayMAC[i] = strtoul(token, NULL, 16);
 		token = strtok(NULL, ":");
 	}
+	for (int i=0;i<ETHER_ADDR_LEN;i++){
+		LO cout << HEXOUT(gatewayMAC[i]) << " "; ULO
+	}
+	LO cout << endl; ULO
 	int n;
 	stream >> n;
 	initial_possible_peers.resize(n);
@@ -84,10 +90,11 @@ void SimulatedMachine::initialize () {
 	cout << "finished initializing folani" << endl;
 }
 
-SimulatedMachine* sm;
+
 void* startParsing(void* arg){
-	PacketParser parser(sm);
-	Frame* frame = (Frame*)arg;
+	SimulatedMachine::startParsingArgument* info = (SimulatedMachine::startParsingArgument*)arg;
+	PacketParser parser(info->sm);
+	Frame *frame = info->frame;
 	bool res = parser.parseFrame(*frame);
 	pthread_exit((void*)res);
 }
@@ -128,7 +135,10 @@ void SimulatedMachine::processFrame (Frame frame, int ifaceIndex) {
     
     pthread_t thread;
     Frame packet(frame.length, copy);
-    int rc = pthread_create(&thread, &attr, startParsing, (void*)(&packet));
+    startParsingArgument arg;
+    arg.sm = this;
+    arg.frame = &packet;
+    int rc = pthread_create(&thread, &attr, startParsing, (void*)(&arg));
     if (rc)
     	ERROR("failed creating new thread")
 }
@@ -162,22 +172,26 @@ void SimulatedMachine::run () {
 				LO cout << "initial possible peer " << i << " with " << initial_possible_peers[i].ip.s_addr << " " << initial_possible_peers[i].port << endl; ULO
 
 				DHTNodeInfo whotoask(initial_possible_peers[i].ip.s_addr, initial_possible_peers[i].port);
-				LOCK(sm->findSuc_lock);
 
 				bool ret = parser.findSuccessor(me.key, whotoask, 1);
 				UNLOCK(sm->findSuc_lock);
-
+				LO cout << "ret from find succesoor is " << ret << endl; ULO
 				if (ret){
+					WARNING("here");
 					predecessor.update(find_suc_ans.pred.ip.s_addr, find_suc_ans.pred.port);
 					successor.update(find_suc_ans.suc.ip.s_addr, find_suc_ans.suc.port);
 					end = 1;
+					WARNING("there");
 					break;
 				}
 
 			}
+			ERROR("found successor (mayble myself)")
 			perceivedN++;
+			LO cout << "pervN after finding suc is " << perceivedN << endl; ULO
 			if (end){
 				//update finger table
+				WARNING("updating finger table")
 				pthread_t updateFinger_thread;
 				PacketParser::updateFingerHelperParameter param;
 				param.pp = &parser;
@@ -193,6 +207,7 @@ void SimulatedMachine::run () {
 				//}
 
 				//send update to predecessor
+				WARNING("sending update to pred")
 				LOCK(sm->inNetwork_lock);
 				parser.sendDHTUpdate(1,1);
 				pthread_cond_wait(&sm->inNetwork_cond, &sm->inNetwork_lock);
@@ -275,14 +290,8 @@ byte* SimulatedMachine::getInterfaceMAC (int interface) {
 	return iface[interface].mac;
 }
 ip_t SimulatedMachine::getInterfaceIP (int interface) {
-//	cout << "getting interface ip" << interface << flush;
-//	cout << " cout" << countOfInterfaces<< flush;
-//	if (interface<0 || interface >= countOfInterfaces)
-//		EXIT("interface index out of bound",1);
-	cout << "sas" << flush;
-	cout << iface << flush;
-	ip_t ret = iface[interface].getIp();
-	cout << "reting " << ret << flush;
+	if (interface<0 || interface >= countOfInterfaces)
+		EXIT("interface index out of bound",1);
 	return iface[interface].getIp();
 }
 

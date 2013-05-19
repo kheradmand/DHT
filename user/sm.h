@@ -43,6 +43,10 @@ public:
 	virtual void processFrame (Frame frame, int ifaceIndex);
 	friend void* startParsing(void* arg);
 	
+	struct startParsingArgument{
+		SimulatedMachine* sm;
+		Frame* frame;
+	};
 	static void parseArguments (int argc, char *argv[]);
     
 

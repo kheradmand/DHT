@@ -7,6 +7,7 @@
 #include <cmath>
 #include <map>
 #include <sys/time.h>
+#include <pthread.h>
 using namespace std;
 
 PacketParser::PacketParser(SimulatedMachine* _sm){
@@ -35,43 +36,33 @@ bool PacketParser::parseFrame(Frame frame){
 
 
 bool PacketParser::parseIPv4(Frame frame){
-	//pthread_mutex_lock(&sm->cout_lock);
-	cout << "parsing ip" << endl;
-	//pthread_mutex_unlock(&sm->cout_lock);
-	//int hlen = sizeof(ip);
+	WARNING("parsing ip");
 	ip* ip_header = (ip*)frame.data;
-	cout << "vaa" << endl;
+
 	if (!verifyChecksum(ip_header)){
-		cout << "checshshsh" << endl;
 		RETURN("checksum not verified, discarding packet",0)
 	}
-	cout << "inja";
-	cout << flush;
 	ip_src = ntohl(ip_header->ip_src.s_addr);
 	ip_dst = ntohl(ip_header->ip_dst.s_addr);
-	cout << "oonja" << flush;
-	cout << ip_dst << " - " << flush;
-	cout << sm->getInterfaceIP(GATEWAY_IFACE) << endl << flush;
 	if (ip_dst != sm->getInterfaceIP(GATEWAY_IFACE)){
-		cout << "ip dstssss" << endl << flush;
+		LO cout << "my ip is " << ip_dst << " gateway ip is" << sm->getInterfaceIP(GATEWAY_IFACE) << " " << sm->me.ip <<  endl; ULO
 		RETURN("packet is not for me, discarding packet",0)
 	}
-	cout << "harja" << flush;
 	if (ip_header->ip_p != IPPROTO_UDP){
-		cout << "samane" << endl << flush;
 		RETURN("expected UDP protocol, discarding packet",0)
 	}
+
 
     return parseUDP(Frame(frame.length-sizeof(ip),frame.data+sizeof(ip)));
 }
 
 bool PacketParser::parseUDP(Frame frame){
-	cout << "parsing udp" << endl;
+	WARNING("parsing udp");
 
     sr_udp* udp_header = (sr_udp*)(frame.data);
     port_src = ntohs(udp_header->port_src);
     port_dst = ntohs(udp_header->port_dst);
-    if (port_src != sm->me.port)
+    if (port_dst != sm->me.port)
         RETURN("unexpected port number, discarding packet",0)
 
     return parseDHT(Frame(frame.length-sizeof(sr_udp), frame.data+sizeof(sr_udp)));
@@ -79,7 +70,7 @@ bool PacketParser::parseUDP(Frame frame){
 }
 
 bool PacketParser::parseDHT(Frame frame){
-    
+    WARNING("parsing dht")
     
     dht_hdr* dht_header = (dht_hdr*)(frame.data);
     init_ip = ntohl(dht_header->init_ip.s_addr);
@@ -89,8 +80,8 @@ bool PacketParser::parseDHT(Frame frame){
     flags = control >> 8;
     operation = (byte)(control & DHT_OPER_MASK);
     N = ntohl(dht_header->n);
-    sm->perceivedN = N;
     
+
     Frame payload(frame.length-sizeof(dht_hdr), frame.data+sizeof(dht_hdr));
     
     
@@ -100,6 +91,7 @@ bool PacketParser::parseDHT(Frame frame){
         	return parseDHTFindSuccessor(payload);
             break;
         case DHT_OPER_UPDATE:
+        	sm->perceivedN = N;
             return parseDHTUpdate(payload);
             break;
         case DHT_OPER_GET:
@@ -118,7 +110,7 @@ bool PacketParser::parseDHT(Frame frame){
 
 bool PacketParser::parseDHTFindSuccessor(Frame frame){
 	cout << "received find successor packet" << endl;
-	if (flags & DHT_QUERY){ //FIND_SUCC Query
+	if (control & DHT_QUERY){ //FIND_SUCC Query
 		LO cout << "find suc query" << endl; ULO;
 		if (!sm->get_inNetwork())
 			RETURN("Node is not in DHT network but received FIND_SUCCESSOR Query, discarding",0);
@@ -136,19 +128,37 @@ bool PacketParser::parseDHTFindSuccessor(Frame frame){
 				if (inRange(sm->finger[i].key, sm->me.key, key, E, E)){
 					return sendDHTFindSuccessorQuery(sm->finger[i]);
 				}
-			WARNING("found no finger, forwarding");
-			return sendDHTFindSuccessorQuery(sm->successor);
+			WARNING("found no finger");
+			cout << "perceivedN" << sm->perceivedN << endl;
+			if (sm->perceivedN == 1){
+				WARNING("there is only me, so i should be the successor");
+				pred_suc_info response;
+				response.pred.ip.s_addr = sm->predecessor.ip;
+				response.pred.port = sm->predecessor.port;
+				response.suc.ip.s_addr = sm->me.ip;
+				response.suc.port = sm->me.port;
+				return sendDHTFindSuccessorResponse(response);
+			}else{
+				WARNING("forwarding")
+				return sendDHTFindSuccessorQuery(sm->successor);
+			}
 		}
 
 	}else{  //FIND_SUCC Ans
+		WARNING("received find suc response")
 		if (init_ip != sm->me.ip)
 			RETURN("received find successor response, but its not for me!",0);
+
 		//signal mikonim, thread ha mibinan age key e morede nazareshoon bood bar midaran
+		WARNING("locking find suc");
 		LOCK(sm->findSuc_lock);
 		pred_suc_info* ans = (pred_suc_info*)frame.data;
 		ntoh_pred_suc_info(&(sm->find_suc_ans),ans);
+		sm->find_suc_N = N;
+		memcpy(sm->find_suc_key, key, DHT_KEY_SIZE);
 		pthread_cond_broadcast(&sm->findSuc_cond);
 		UNLOCK(sm->findSuc_lock);
+		WARNING("unloking find succ");
 		return 1;
 	}
 	return 0;
@@ -156,7 +166,7 @@ bool PacketParser::parseDHTFindSuccessor(Frame frame){
 }
 
 bool PacketParser::parseDHTUpdate(Frame frame){
-	if (flags & DHT_ADDED){
+	if (control & DHT_ADDED){
 		if (init_ip == sm->getInterfaceIP(GATEWAY_IFACE)){
 			WARNING("add update packet circled successfully");
 			//ehtemalan hame kara ghablan shode :-?
@@ -169,11 +179,12 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			UNLOCK(sm->inNetwork_lock);
 			return 1;
 		}else{
+			LO cout << "N in updating is " << N  << endl; ULO
 			//check if pred
-			if (inRange(key, sm->predecessor.key, sm->me.key, E, E))
+			if (N == 2 || inRange(key, sm->predecessor.key, sm->me.key, E, E))
 				sm->predecessor.update(init_ip,init_port);
 			//check if suc
-			if (inRange(key, sm->me.key, sm->successor.key, E, E))
+			if (N == 2 || inRange(key, sm->me.key, sm->successor.key, E, E))
 				sm->successor.update(init_ip,init_port);
 
 			updateFingerHelperParameter param;
@@ -200,10 +211,10 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			ntoh_pred_suc_info(&pred_suc, (pred_suc_info*)frame.data);
 
 			//check if pred
-			if (inRange(key, sm->predecessor.key, sm->me.key, E, E))
+			if (N==1 || inRange(key, sm->predecessor.key, sm->me.key, E, E))
 				sm->predecessor.update(pred_suc.pred.ip.s_addr, pred_suc.pred.port);
 			//check if suc
-			if (inRange(key, sm->me.key, sm->successor.key, E, E))
+			if (N==1 || inRange(key, sm->me.key, sm->successor.key, E, E))
 				sm->successor.update(pred_suc.suc.ip.s_addr, pred_suc.suc.port);
 			updateFingerHelperParameter param;
 			param.pp = this;
@@ -245,10 +256,10 @@ bool PacketParser::parseDHTTransfer(Frame frame){
 
 bool PacketParser::parseDHTGet(Frame frame){
 /*
-	if (flags & DHT_QUERY){
+	if (control & DHT_QUERY){
 
 	}else {
-		if (flags & DHT_FOUND)
+		if (control & DHT_FOUND)
 	}
 */
 	return 0;
@@ -385,7 +396,8 @@ bool PacketParser::sendDHTPacket(Frame frame, ip_t target_ip, port_t target_port
 	sr_udp* udp_header = (sr_udp*)(payload+sizeof(sr_ethernet_hdr)+sizeof(ip));
 	dht_hdr* dht_header = (dht_hdr*)(payload+sizeof(sr_ethernet_hdr)+sizeof(ip)+sizeof(sr_udp));
 
-
+	LO cout << "vaaaa inja alan gateway mac ine "; ULO
+	dumpMAC(sm->getGatewayMAC());
 	memcpy(ether_header->ether_shost, sm->getInterfaceMAC(GATEWAY_IFACE), ETHER_ADDR_LEN);
 	memcpy(ether_header->ether_dhost, sm->getGatewayMAC(), ETHER_ADDR_LEN);
 	ether_header->ether_type = htons(ETHERTYPE_IP);
@@ -506,22 +518,26 @@ void PacketParser::updateFinger(uint32 n){
 			sm->finger[i+1].update(sm->finger[i].ip, sm->finger[i].port);
 		}else{
 
-			bool ret = findSuccessor(getFingerStart(i+1), sm->successor);
-			if (!ret)
-				ERROR("finding successor in finger update failed")
-			else
-				sm->finger[i+1].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
+			//bool ret = findSuccessor(getFingerStart(i+1), sm->successor);
+			//if (!ret)
+			//	ERROR("finding successor in finger update failed")
+			//else
+			while(!findSuccessor(getFingerStart(i+1), sm->successor))
+				UNLOCK(sm->findSuc_lock);
+			sm->finger[i+1].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 			UNLOCK(sm->findSuc_lock);
 
 
 		}
 	}
 	for (int i=mn+1;i<(int)sm->finger.size();i++){
-		bool ret = findSuccessor(getFingerStart(i), sm->successor);
-		if (!ret)
-			ERROR("finding successor in finger update failed")
-		else
-			sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
+		//bool ret = findSuccessor(getFingerStart(i), sm->successor);
+		//if (!ret)
+		//	ERROR("finding successor in finger update failed")
+		//else
+		while(!findSuccessor(getFingerStart(i), sm->successor))
+			UNLOCK(sm->findSuc_lock);
+		sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 		UNLOCK(sm->findSuc_lock);
 	}
 	pthread_exit(NULL);
@@ -532,7 +548,7 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 	LOCK(sm->findSuc_lock);
 	bool b = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
 	LO cout << "sendDHTFindSuccessorQuery returned with " << b << endl; ULO
-	DHTNodeInfo info(0,0);
+	//DHTNodeInfo info(0,0);
 	int rc;
 
 	timeval now;
@@ -541,14 +557,26 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 	t.tv_sec = now.tv_sec + 3;
 	t.tv_nsec = 0;
 
+	bool cont = 1;
 	do {
+		ERROR("loop!")
+		cont = 0;
 		if (timed){
 			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
-			if (rc) break;
-		}else
-			rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
-		info.update(sm->find_suc_ans.suc.ip.s_addr,sm->find_suc_ans.suc.port);
-	} while (memcmp(thekey, info.key, DHT_KEY_SIZE)!=0);
+			LO cout << "rc after time wait is " << rc << endl; ULO
+			if (rc == 22) {cont=1; continue;}
+			if (rc == 60) {WARNING("timeout") break;}
+			WARNING("first setting N "); LO cout << sm->perceivedN << endl; ULO
+			sm->perceivedN = sm->find_suc_N;
+		}else{
+			//rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
+			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
+			if (rc == 22) {cont=1; continue;}
+			if (rc == 60) {ERROR("timeout") break;}
+		}
+		//info.update(sm->find_suc_ans.suc.ip.s_addr,sm->find_suc_ans.suc.port);
+	} while (cont || memcmp(thekey, sm->find_suc_key, DHT_KEY_SIZE)!=0);
+	LO cout << "rc when returning is " << rc << endl; ULO;
 	return (rc == 0);
 }
 
@@ -562,11 +590,9 @@ bool PacketParser::verifyChecksum(ip* header){
 		sum += add;
 	}
 	sum += sum>>16;
-	cout << yellow("sum") << HEXOUT(sum) << endl;
 	sum = ~sum;
 	if (sum & 0x0FFFF)
 		return 0;
-	cout << "good" << endl;
 	return 1;
 }
 
@@ -683,7 +709,19 @@ bool PacketParser::dumpUDP(Frame frame){
 	uint16 dst = ntohs(header->port_dst);
 	cout << "\tSource port number:\t\t" << (uint32)src << endl;
 	cout << "\tDestination port number:\t" << (uint32)dst << endl;
+	return dumpDHT(Frame(frame.length-sizeof(sr_udp), frame.data+sizeof(sr_udp)));
+}
+
+bool PacketParser::dumpDHT(Frame frame){
+	cout << bold(">DHT") << endl;
+	cout << "\t";
+	hexDump(frame);
+	dht_hdr* header = (dht_hdr*)frame.data;
+	cout << "\tControl(hex):\t" << HEXOUT(ntohs(header->control)) << endl;
+	//cout << "Operation(hex)\t:" << HEXOUT(operation) << endl;
+	//cout << "Flags(hex):\t\t" << HEXOUT(flags) << endl;
 	return 1;
+
 }
 
 
