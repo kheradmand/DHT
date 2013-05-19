@@ -244,7 +244,7 @@ void SimulatedMachine::run () {
 			}
 			if (perceivedN >=2){
 				//push data to successor
-				LOCK(sm->ack_lock);
+				//LOCK(sm->ack_lock);
 //				int rc;
 //				do{
 //					timeval now;
@@ -257,8 +257,8 @@ void SimulatedMachine::run () {
 //					rc = pthread_cond_timedwait(&sm->ack_cond, &sm->ack_lock, &t);
 //				}while( rc == 60);
 				parser.sendDHTTransfer(1);
-				pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
-				UNLOCK(sm->ack_lock);
+				//pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
+				//UNLOCK(sm->ack_lock);
 
 				//send update to predecessor
 				perceivedN--;
@@ -280,9 +280,28 @@ void SimulatedMachine::run () {
 
 			WARNING("node left DHT network");
 		}else if (command == "set"){
-		
+			if (!get_inNetwork()){
+				WARNING("node not in network");
+				continue;
+			}
+			string k;
+			commandstream >> k;
+			ip_t v;
+			commandstream >> v;
+			parser.sendDHTDNSSet(k, v);
 		}else if (command == "get"){
-		
+			if (!get_inNetwork()){
+				WARNING("node not in network");
+				continue;
+			}
+			string k;
+			commandstream >> k;
+			parser.DNSQuery(k);
+			if (!dns_found){
+				ERROR("\t>not found!")
+			}else{
+				LO cout << green("\t->\t"+k) << "\t" << dns_ans << endl; ULO
+			}
 		}else if (command == "print"){
 			char succ_ip_str[INET_ADDRSTRLEN];
 			char pred_ip_str[INET_ADDRSTRLEN];
@@ -306,8 +325,8 @@ void SimulatedMachine::run () {
 				cout << "\t" << i << ":\t" << finger_ip_str << "\t" << finger[i].port << endl;
 			}
 			cout << cyan(">DNS table:") << endl;
-			for (typeof(dnsChache.begin()) i=dnsChache.begin();i!=dnsChache.end();i++)
-				cout << "\t" << i->first << "\t\t" << i->second << endl;
+//			for (typeof(dnsChache.begin()) i=dnsChache.begin();i!=dnsChache.end();i++)
+//				cout << "\t" << i->first << "\t\t" << i->second << endl;
 			ULO
 		}else{
 			cout << red("unsupported command") << endl;	

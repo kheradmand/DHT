@@ -187,6 +187,7 @@ struct dht_hdr{
 #define DHT_QUERY	0x8000
 #define DHT_ADDED	0x4000
 #define DHT_ACK		0x2000
+#define DHT_GET     0x1000
 #define DHT_OPER_MASK	0x00FF
 } __attribute__ ((packed)) ;
 

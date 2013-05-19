@@ -45,11 +45,14 @@ private:
     bool parseDHTTransfer(Frame frame);
     bool parseDHTDNS(Frame frame);
 
-    void fillDefaultDHTHeader(dht_hdr* header);
+    void fillDefaultDHTHeader(dht_hdr* header, bool me=0);
     bool sendDHTFindSuccessorResponse(pred_suc_info my_pred_suc);
     bool sendDHTFindSuccessorQuery(DHTNodeInfo target,bool init=0,byte* thekey=NULL);
 
-    bool sendDHTTransferACK();
+    //bool sendDHTTransferACK();
+
+    bool sendDHTDNSResponse(Frame frame);
+
 
     bool sendDHTPacket(Frame frame, ip_t target_ip, port_t taget_port);
     bool sendFrame(Frame frame);
@@ -67,6 +70,9 @@ private:
 public:
     bool sendDHTTransferQuery();
 
+    bool DNSQuery(string& k);
+    bool sendDHTDNSSet(string& k, ip_t v);
+
     bool sendDHTTransfer(bool fromMetoSuc=0);
     void updateFinger(uint32 n, bool deleted=0);
 
@@ -77,7 +83,7 @@ public:
 
 	bool sendDHTUpdate(bool added, bool init=0);
 
-	static void* updateFingerHelper(void* arg);
+
 	struct updateFingerHelperParameter{
 		PacketParser* pp;
 		int n;

@@ -43,6 +43,10 @@ public:
     pthread_cond_t transfer_cond;
     pthread_mutex_t ack_lock;
     pthread_cond_t ack_cond;
+    pthread_mutex_t dns_lock;
+    pthread_cond_t dns_cond;
+
+
 
     pthread_mutex_t send_lock;
     pthread_mutex_t cout_lock;
@@ -52,7 +56,8 @@ public:
     byte find_suc_key[DHT_KEY_SIZE];
     uint32 find_suc_N;
 
-
+    bool dns_found;
+    ip_t dns_ans;
 
 };
 

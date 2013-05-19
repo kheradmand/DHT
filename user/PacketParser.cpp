@@ -101,7 +101,7 @@ bool PacketParser::parseDHT(Frame frame){
             return parseDHTTransfer(payload);
             break;
         case DHT_OPER_DNS:
-           // return parseDHTDNS(payload); //TODO
+        	return parseDHTDNS(payload);
             break;
         default:
             RETURN("unexpected DHT operation",0);
@@ -249,16 +249,16 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 bool PacketParser::parseDHTTransfer(Frame frame){
 
 	WARNING("received DHT bulk Transfer");
-	if (control & DHT_ACK){
+	/*if (control & DHT_ACK){
 		WARNING("received ack")
 		LOCK(sm->ack_lock);
 		pthread_cond_signal(&sm->ack_cond);
 		UNLOCK(sm->ack_lock)
 		return 1;
-	}else if (control & DHT_QUERY){
-		WARNING("query to trasfer information");
+	}else*/ if (control & DHT_QUERY){
+		WARNING("query for trasfer information");
 
-		LOCK(sm->ack_lock);
+		//LOCK(sm->ack_lock);
 //				int rc;
 //				do{
 //					timeval now;
@@ -271,8 +271,8 @@ bool PacketParser::parseDHTTransfer(Frame frame){
 //					rc = pthread_cond_timedwait(&sm->ack_cond, &sm->ack_lock, &t);
 //				}while( rc == 60);
 		sendDHTTransfer();
-		pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
-		UNLOCK(sm->ack_lock);
+		//pthread_cond_wait(&sm->ack_cond, &sm->ack_lock);
+		//UNLOCK(sm->ack_lock);
 		return 1;
 
 	}else{
@@ -297,7 +297,7 @@ bool PacketParser::parseDHTTransfer(Frame frame){
 			ptr += sizeof(dns_record) + len;
 		}
 
-		sendDHTTransferACK();
+		//sendDHTTransferACK();
 
 		LOCK(sm->transfer_lock);
 		pthread_cond_signal(&sm->transfer_cond);
@@ -307,10 +307,51 @@ bool PacketParser::parseDHTTransfer(Frame frame){
 	}
 }
 
-void PacketParser::fillDefaultDHTHeader(dht_hdr* header){
-	header->init_ip.s_addr = htonl(init_ip);
-	header->init_port = htons(init_port);
-	memcpy(header->key, key, DHT_KEY_SIZE);
+
+bool PacketParser::parseDHTDNS(Frame frame){
+	WARNING("parsing DHT dns")
+	if (control & DHT_GET){ //get
+
+		if (control & DHT_QUERY){
+			WARNING("dns get query")
+			return sendDHTDNSResponse(frame);
+		}else{
+			WARNING("dns get response")
+			if (frame.length == 0){
+				ERROR("name not found")
+				sm->dns_found = 0;
+			}else{
+				WARNING("found some answer for dns query")
+				sm->dns_found = 1;
+				uint32* ans = (uint32*)frame.data;
+				sm->dns_ans = ntohl(*ans);
+				LOCK(sm->dns_lock);
+				pthread_cond_wait(&sm->dns_cond, &sm->dns_lock);
+				UNLOCK(sm->dns_lock);
+				return 1;
+			}
+		}
+	}else{ //set
+		WARNING("dns set")
+		dns_record* record = (dns_record*) frame.data;
+		uint32_t ip = ntohl(record->ip);
+
+		uint8_t len = record->len;
+		char buf[256];
+		memcpy(buf, frame.data + sizeof(dns_record), len);
+
+		string domain(buf);
+		LO cout << "adding " << domain << " " << ip << endl; ULO
+		sm->dnsChache[domain] = ip;
+		return 1;
+	}
+	return 0;
+}
+
+void PacketParser::fillDefaultDHTHeader(dht_hdr* header,bool me){
+	header->init_ip.s_addr = htonl(me ? sm->me.ip : init_ip);
+	header->init_port = htons(me ? sm->me.port : init_port);
+	memcpy(header->key, (me ? sm->me.key : key), DHT_KEY_SIZE);
 	header->n = htonl(sm->perceivedN);
 }
 
@@ -371,9 +412,10 @@ bool PacketParser::sendDHTUpdate(bool added, bool init){
 	dht_header->control = htons(DHT_OPER_UPDATE | (added? DHT_ADDED : 0));
 
 	if (init){
-		dht_header->init_ip.s_addr = htonl(sm->me.ip);
-		dht_header->init_port = htons(sm->me.port);
-		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+		fillDefaultDHTHeader(dht_header, 1);
+//		dht_header->init_ip.s_addr = htonl(sm->me.ip);
+//		dht_header->init_port = htons(sm->me.port);
+//		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
 	}
 
 	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
@@ -400,9 +442,10 @@ bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
 	Frame frame(sizeof(payload),payload);
 
 	dht_hdr* dht_header = (dht_hdr*)payload;
-	dht_header->init_ip.s_addr = htonl(sm->me.ip);
-	dht_header->init_port = htons(sm->me.port);
-	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+//	dht_header->init_ip.s_addr = htonl(sm->me.ip);
+//	dht_header->init_port = htons(sm->me.port);
+//	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	fillDefaultDHTHeader(dht_header, 1);
 	dht_header->control = htons(DHT_OPER_TRANSF); //DHT_QUERy nist => asnwere
 
 	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
@@ -425,16 +468,63 @@ bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
 	return sendDHTPacket(frame, (fromMetoSuc? sm->successor.ip : init_ip), (fromMetoSuc? sm->successor.port : init_port));
 }
 
+bool PacketParser::sendDHTDNSSet(string& k, ip_t v){
+	ERROR("want to set key on somewhere");
 
-bool PacketParser::sendDHTTransferACK(){
-	byte payload[sizeof(dht_hdr)];
+	byte sha[DHT_KEY_SIZE];
+	SHA1((unsigned char*)k.c_str(), k.length(), (unsigned char*)sha);
+
+	if (sm->perceivedN>1){
+		findSuccessor(sha, sm->successor, 0);
+		LO cout << "succesor for record found " << endl; ULO
+		UNLOCK(sm->findSuc_lock);
+	}
+
+	if (sm->perceivedN<2 || sm->perceivedN==1 || sm->find_suc_ans.suc.ip.s_addr == sm->me.ip){
+		LO cout << "i am the owner of key no need to ask anybody in dns set -----" << endl; ULO
+		sm->dnsChache[k] = v;
+		return 1;
+	}
+
+
+
+	int size = k.length()+1+sizeof(dns_record);
+
+	byte payload[sizeof(dht_hdr)+ size];
 	Frame frame(sizeof(payload),payload);
 
 	dht_hdr* dht_header = (dht_hdr*)payload;
-	fillDefaultDHTHeader(dht_header);
-	dht_header->control = htons(DHT_OPER_TRANSF | DHT_ACK);
-	return sendDHTPacket(frame, init_ip, init_port);
+//	dht_header->init_ip.s_addr = htonl(sm->me.ip);
+//	dht_header->init_port = htons(sm->me.port);
+//	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	fillDefaultDHTHeader(dht_header, 1);
+	dht_header->control = htons(DHT_OPER_TRANSF); //DHT_QUERy nist => asnwere
+
+	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
+	dns_record* record = (dns_record*) ptr;
+	record->ip = htonl(v);
+	record->len = k.length() + 1;
+	memcpy(ptr + sizeof(dns_record), k.c_str(), k.length());
+	*(ptr + sizeof(dns_record) + k.length()) = '\0';
+
+
+
+
+	//return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
+	return sendDHTPacket(frame, sm->find_suc_ans.suc.ip.s_addr , sm->find_suc_ans.suc.port);
 }
+
+
+
+//bool PacketParser::sendDHTTransferACK(){
+//	byte payload[sizeof(dht_hdr)];
+//	Frame frame(sizeof(payload),payload);
+//
+//	dht_hdr* dht_header = (dht_hdr*)payload;
+//	fillDefaultDHTHeader(dht_header);
+//	dht_header->control = htons(DHT_OPER_TRANSF | DHT_ACK);
+//	return sendDHTPacket(frame, init_ip, init_port);
+//}
 
 
 bool PacketParser::sendDHTTransferQuery(){
@@ -442,12 +532,79 @@ bool PacketParser::sendDHTTransferQuery(){
 	Frame frame(sizeof(payload),payload);
 
 	dht_hdr* dht_header = (dht_hdr*)payload;
-	dht_header->init_ip.s_addr = htonl(sm->me.ip);
-	dht_header->init_port = htons(sm->me.port);
-	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+//	dht_header->init_ip.s_addr = htonl(sm->me.ip);
+//	dht_header->init_port = htons(sm->me.port);
+//	dht_header->n = htonl(sm->perceivedN);
+//	memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
+	fillDefaultDHTHeader(dht_header, 1);
 	dht_header->control = htons(DHT_OPER_TRANSF | DHT_QUERY);
 
 	return sendDHTPacket(frame, sm->successor.ip, sm->successor.port);
+
+}
+
+bool PacketParser::sendDHTDNSResponse(Frame frame){
+	uint8_t len = *((byte*)frame.data);
+	char buf[256];
+	memcpy(buf, frame.data + sizeof(byte), len);
+	string domain(buf);
+	LO cout << "query is for  " << domain << endl; ULO
+
+	if (sm->dnsChache.find(domain) == sm->dnsChache.end()){
+		ERROR("not found")
+		byte payload[sizeof(dht_hdr)];
+		Frame frame(sizeof(payload),payload);
+		dht_hdr* dht_header = (dht_hdr*)payload;
+		fillDefaultDHTHeader(dht_header, 1);
+		dht_header->control = htons(DHT_OPER_DNS | DHT_GET); //dht get response
+		return sendDHTPacket(frame, init_ip, init_port);
+	}else{
+		ERROR("found") LO cout << " it is " << sm->dnsChache[domain] << endl; ULO
+		byte payload[sizeof(dht_hdr)+sizeof(ip_t)];
+		Frame frame(sizeof(payload),payload);
+		dht_hdr* dht_header = (dht_hdr*)payload;
+		fillDefaultDHTHeader(dht_header, 1);
+		dht_header->control = htons(DHT_OPER_DNS | DHT_GET); //dht get response
+		ip_t* ans = (ip_t*)(payload+sizeof(dht_hdr));
+		return sendDHTPacket(frame, init_ip, init_port);
+	}
+
+}
+
+bool PacketParser::DNSQuery(string& k){
+	LO cout << "want to send a dns query" << endl; ULO
+	byte sha[DHT_KEY_SIZE];
+	SHA1((unsigned char*)k.c_str(), k.length(), (unsigned char*)sha);
+
+	if (sm->perceivedN>1){
+		findSuccessor(sha, sm->successor, 0);
+		LO cout << "succesor for record found " << endl; ULO
+		UNLOCK(sm->findSuc_lock);
+	}
+
+	if (sm->perceivedN<2 || sm->find_suc_ans.suc.ip.s_addr == sm->me.ip){
+		LO cout << "i am the owner of key no need to ask anybody" << endl; ULO
+		if (sm->dnsChache.find(k)==sm->dnsChache.end())
+			sm->dns_found = 0;
+		else{
+			sm->dns_found = 1;
+			sm->dns_ans = sm->dnsChache[k];
+		}
+		return 1;
+	}
+
+	byte payload[sizeof(dht_hdr)+sizeof(byte)+k.length()];
+	Frame frame(sizeof(payload),payload);
+	dht_hdr* dht_header = (dht_hdr*)payload;
+	fillDefaultDHTHeader(dht_header, 1);
+	dht_header->control = htons(DHT_OPER_DNS | DHT_GET | DHT_QUERY); //dns get query
+
+	byte* len = (byte*)(payload+sizeof(dht_hdr));
+	*len = k.length();
+	memcpy(len+sizeof(byte), k.c_str(), k.length());
+
+	return sendDHTPacket(frame, sm->find_suc_ans.suc.ip.s_addr , sm->find_suc_ans.suc.port);
+
 
 }
 
@@ -578,12 +735,12 @@ byte* PacketParser::getFingerStart(int index){
 	return ret;
 
 }
-
-void* PacketParser::updateFingerHelper(void* arg){
-	updateFingerHelperParameter* param = (updateFingerHelperParameter*)arg;
-	param->pp->updateFinger(param->n);
-	return NULL;
-}
+//
+//void* PacketParser::updateFingerHelper(void* arg){
+//	updateFingerHelperParameter* param = (updateFingerHelperParameter*)arg;
+//	param->pp->updateFinger(param->n);
+//	return NULL;
+//}
 
 
 void PacketParser::updateFinger(uint32 n, bool deleted){
