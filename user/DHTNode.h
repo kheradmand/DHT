@@ -41,9 +41,12 @@ public:
     pthread_mutex_t send_lock;
     pthread_mutex_t cout_lock;
     
+
     pred_suc_info find_suc_ans;
     byte find_suc_key[DHT_KEY_SIZE];
     uint32 find_suc_N;
+
+
 
 };
 

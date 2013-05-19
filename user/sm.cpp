@@ -54,9 +54,13 @@ void SimulatedMachine::initialize () {
 	//PacketDumper::sm = this;
 	string custom = getCustomInformation();
 	stringstream stream(custom);
-	stream >> me.port;
-	me.ip = getInterfaceIP(GATEWAY_IFACE);
+	uint16 port;
+	stream >> port;
+	uint32 ip = getInterfaceIP(GATEWAY_IFACE);
+	me.update(ip, port);
 	me.update(me.ip, me.port);
+	//cout << "fuck you initialzer " << endl;
+	//me.print();
 	LO cout << "ahmag " << me.ip << " boz " << getInterfaceIP(GATEWAY_IFACE) << endl; ULO;
 	string gatewayMacStr;
 	stream >> gatewayMacStr;
@@ -257,6 +261,7 @@ void SimulatedMachine::run () {
 		}else if (command == "print"){
 			char succ_ip_str[INET_ADDRSTRLEN];
 			char pred_ip_str[INET_ADDRSTRLEN];
+			char finger_ip_str[INET_ADDRSTRLEN];
 			uint32 suc = htonl(successor.ip);
 			uint32 pred = htonl(predecessor.ip);
 			inet_ntop(AF_INET, &suc ,succ_ip_str,sizeof(succ_ip_str));
@@ -264,6 +269,13 @@ void SimulatedMachine::run () {
 			LO
 			cout << cyan(">Predecessor IP:\t") << pred_ip_str << endl;
 			cout << cyan(">Successor IP:\t\t") << succ_ip_str << endl;
+			cout << cyan(">Nodes in net:\t\t") << perceivedN << endl;
+			cout << cyan(">Finger table:\t\t") << endl;
+			for (int i=0;i<(int)finger.size();i++){
+				uint32 fing = htonl(finger[i].ip);
+				inet_ntop(AF_INET, &fing, finger_ip_str,sizeof(finger_ip_str));
+				cout << "\t" << i << ":\t" << finger_ip_str << "\t" << finger[i].port << endl;
+			}
 			cout << cyan(">DNS table:") << endl;
 			//TODO
 			ULO

@@ -17,8 +17,10 @@ PacketParser::PacketParser(SimulatedMachine* _sm){
 
 
 bool PacketParser::parseFrame(Frame frame){
-	dumpPacket(frame, GATEWAY_IFACE, 0);
 
+	LO
+	dumpPacket(frame, GATEWAY_IFACE, 0);
+	ULO
 	int hlen = sizeof(sr_ethernet_hdr);
 	sr_ethernet_hdr* header = (sr_ethernet_hdr*)(frame.data);
 	uint16 ether_type = ntohs(header->ether_type);
@@ -44,7 +46,7 @@ bool PacketParser::parseIPv4(Frame frame){
 	}
 	ip_src = ntohl(ip_header->ip_src.s_addr);
 	ip_dst = ntohl(ip_header->ip_dst.s_addr);
-	if (ip_dst != sm->getInterfaceIP(GATEWAY_IFACE)){
+	if (ip_dst != sm->me.ip){
 		LO cout << "my ip is " << ip_dst << " gateway ip is" << sm->getInterfaceIP(GATEWAY_IFACE) << " " << sm->me.ip <<  endl; ULO
 		RETURN("packet is not for me, discarding packet",0)
 	}
@@ -124,8 +126,10 @@ bool PacketParser::parseDHTFindSuccessor(Frame frame){
 			response.suc.port = sm->me.port;
 			return sendDHTFindSuccessorResponse(response);
 		}else{
+			LO cout << "iam not answer :(" << endl; ULO
 			for (int i=sm->finger.size()-1;i>=0;i--)
 				if (inRange(sm->finger[i].key, sm->me.key, key, E, E)){
+					LO cout << "forwarding query to finger" << i << endl; ULO
 					return sendDHTFindSuccessorQuery(sm->finger[i]);
 				}
 			WARNING("found no finger");
@@ -167,7 +171,7 @@ bool PacketParser::parseDHTFindSuccessor(Frame frame){
 
 bool PacketParser::parseDHTUpdate(Frame frame){
 	if (control & DHT_ADDED){
-		if (init_ip == sm->getInterfaceIP(GATEWAY_IFACE)){
+		if (init_ip == sm->me.ip){
 			WARNING("add update packet circled successfully");
 			//ehtemalan hame kara ghablan shode :-?
 			//finger haye khodesho peida kone
@@ -434,7 +438,9 @@ bool PacketParser::sendDHTPacket(Frame frame, ip_t target_ip, port_t target_port
 
 bool PacketParser::sendFrame(Frame frame){
 	int c = 100;
+	LO
 	dumpPacket(frame, GATEWAY_IFACE, 1);
+	ULO
 	while (c-- && !sm->sendFrame(frame, GATEWAY_IFACE));
 	if (c>=0){
 		cout << green("packet sent successfully") << endl;
@@ -460,7 +466,32 @@ void PacketParser::hton_pred_suc_info(pred_suc_info* dst,pred_suc_info* src){
 }
 
 bool PacketParser::inRange(byte* key,byte* from, byte* to, bool from_inc, bool to_inc){
-	int comp = (memcmp(key, from, DHT_KEY_SIZE));
+	//khob  inja chon ghazie kharkheshie ye meghdar moshkelat dare
+	//avalin moshkel ine ke vaghti ke saro tahe baze yekie maloom nis khalie manzoor ya kol, farz mikonim manzoor pore
+	int ft = memcmp(from, to, DHT_KEY_SIZE);
+	int comp = memcmp(key, from, DHT_KEY_SIZE);
+
+//	LO
+//	cout << "checking in range" << endl;
+//	DHTNodeInfo::dumpKey(key);
+//	DHTNodeInfo::dumpKey(from);
+//	DHTNodeInfo::dumpKey(to);
+//	cout << "ft " << ft << " cmop " << comp << endl;
+//	ULO
+
+	if (ft == 0){ //kolle baze
+		if (!from_inc && !to_inc && comp == 0)
+			return 0;
+		else
+			return 1;
+	}
+
+	if (ft>0)
+		return !(inRange(key, to, from, !to_inc, !from_inc));
+
+	//ft > 0
+
+
 	if (comp<0 || (comp==0 && !from_inc))
 		return 0;
 	comp = (memcmp(key, to, DHT_KEY_SIZE));
@@ -498,6 +529,8 @@ static void* fetchDataHelper(void* arg){
 }
 
 void PacketParser::updateFinger(uint32 n){
+	ERROR("started to update finger!")
+	LO cout << "N is " << n << endl; ULO
 	if (n == 0){
 		pthread_exit(NULL);
 	}
@@ -513,30 +546,39 @@ void PacketParser::updateFinger(uint32 n){
 	}
 
 	int mn = min(m, lastSize);
-	for (int i=1;i<mn-1;i++){
+	LO cout << " mn " << mn << " m " << m  << "!" << endl; ULO
+	for (int i=0;i<mn-1;i++){
+		LO cout << "kkkkkkkkkkkk" << endl;
 		if (inRange(getFingerStart(i+1), sm->me.key, sm->finger[i].key, I, E)){
+			LO cout << "figer " << i << " is aprop for " << i+1 << endl; ULO
 			sm->finger[i+1].update(sm->finger[i].ip, sm->finger[i].port);
 		}else{
-
+			LO cout << "figer " << i << " is NOTOTOTOO aprop for " << i+1 << endl; ULO
 			//bool ret = findSuccessor(getFingerStart(i+1), sm->successor);
 			//if (!ret)
 			//	ERROR("finding successor in finger update failed")
 			//else
-			while(!findSuccessor(getFingerStart(i+1), sm->successor))
+			while(!findSuccessor(getFingerStart(i+1), sm->successor)){
 				UNLOCK(sm->findSuc_lock);
+				ERROR("==========================================")
+			}
 			sm->finger[i+1].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 			UNLOCK(sm->findSuc_lock);
 
 
 		}
 	}
-	for (int i=mn+1;i<(int)sm->finger.size();i++){
+	LO cout << "what the " << endl; ULO
+	for (int i=mn;i<(int)sm->finger.size();i++){
+		LO cout << "kkkkkasasasaskkkkkkk" << i << endl; ULO
 		//bool ret = findSuccessor(getFingerStart(i), sm->successor);
 		//if (!ret)
 		//	ERROR("finding successor in finger update failed")
 		//else
-		while(!findSuccessor(getFingerStart(i), sm->successor))
+		while(!findSuccessor(getFingerStart(i), sm->successor)){
 			UNLOCK(sm->findSuc_lock);
+			ERROR("==========================================")
+		}
 		sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 		UNLOCK(sm->findSuc_lock);
 	}
@@ -545,7 +587,9 @@ void PacketParser::updateFinger(uint32 n){
 
 //in tabe vaghti barmigarde findSuc_lock lock hastesh
 bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed){
-	LOCK(sm->findSuc_lock);
+	ERROR("staring find successor")
+	LOCK(sm->findSuc_lock)
+	ERROR("locked find successor")
 	bool b = sendDHTFindSuccessorQuery(whotoask, 1, thekey);
 	LO cout << "sendDHTFindSuccessorQuery returned with " << b << endl; ULO
 	//DHTNodeInfo info(0,0);
@@ -554,7 +598,7 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 	timeval now;
 	gettimeofday(&now, NULL);
 	timespec t;
-	t.tv_sec = now.tv_sec + 3;
+	t.tv_sec = now.tv_sec + 1; //movaghat //TODO avazesh kon
 	t.tv_nsec = 0;
 
 	bool cont = 1;
@@ -569,10 +613,10 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 			WARNING("first setting N "); LO cout << sm->perceivedN << endl; ULO
 			sm->perceivedN = sm->find_suc_N;
 		}else{
-			//rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
-			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
-			if (rc == 22) {cont=1; continue;}
-			if (rc == 60) {ERROR("timeout") break;}
+			rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
+			//rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
+			//if (rc == 22) {cont=1; continue;}
+			//if (rc == 60) {ERROR("timeout") break;}
 		}
 		//info.update(sm->find_suc_ans.suc.ip.s_addr,sm->find_suc_ans.suc.port);
 	} while (cont || memcmp(thekey, sm->find_suc_key, DHT_KEY_SIZE)!=0);

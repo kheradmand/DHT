@@ -9,10 +9,10 @@
 #include <arpa/inet.h>
 using namespace std;
 
-#define LO {LOCK(sm->cout_lock)}
-#define ULO {UNLOCK(sm->cout_lock)}
 #define LOCK(td) {pthread_mutex_lock(&(td));}
 #define UNLOCK(td) {pthread_mutex_unlock(&(td));}
+#define LO {LOCK(sm->cout_lock)}
+#define ULO {UNLOCK(sm->cout_lock)}
 #define WARNING(str) {LO cout << yellow(str) << endl; ULO}
 #define ERROR(str) {LOCK(sm->cout_lock) cout << red(str) << endl; UNLOCK(sm->cout_lock)}
 #define RETURN(str,ec) {LOCK(sm->cout_lock) cout << pthread_self() << red(str) << endl; UNLOCK(sm->cout_lock) return (ec); }
