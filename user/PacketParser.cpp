@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include <openssl/sha.h>
+#include <errno.h>
 using namespace std;
 
 PacketParser::PacketParser(SimulatedMachine* _sm){
@@ -834,8 +835,8 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
 			LO cout << "wokeup timed" << endl; ULO
 			LO cout << "rc after time wait is " << rc << endl; ULO
-			if (rc == 22) {cont=1; continue;}
-			if (rc == 60) {WARNING("timeout") break;}
+			if (rc == EINVAL) {cont=1; continue;}
+			if (rc == ETIMEDOUT) {WARNING("timeout") break;}
 			WARNING("first setting N "); LO cout << sm->perceivedN << endl; ULO
 			sm->perceivedN = sm->find_suc_N;
 		}else{
