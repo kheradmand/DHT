@@ -27,7 +27,9 @@ private:
     byte operation;
     uint32 N;
     
-    pthread_t updateFinger_thread;
+    pred_suc_info* delete_update_info;
+
+    //pthread_t updateFinger_thread;
 
     
 public:

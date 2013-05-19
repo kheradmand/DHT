@@ -100,6 +100,7 @@ void* startParsing(void* arg){
 	PacketParser parser(info->sm);
 	Frame *frame = info->frame;
 	bool res = parser.parseFrame(*frame);
+	//delete info->frame->data;
 	pthread_exit((void*)res);
 }
 
@@ -129,12 +130,12 @@ void* startParsing(void* arg){
 void SimulatedMachine::processFrame (Frame frame, int ifaceIndex) {
 
 	sm = this;
-	cout << "Frame received at iface " << ifaceIndex <<
-		" with length " << frame.length << endl;
+	LO cout << "Frame received at iface " << ifaceIndex <<
+		" with length " << frame.length << endl; ULO
 	if (ifaceIndex != GATEWAY_IFACE)
 		ERROR("expected packet from gateway interface, discarding packet")
 	
-    byte copy[frame.length];
+    byte* copy = new byte[frame.length];
     memcpy(copy, frame.data, frame.length);
     
     pthread_t thread;
@@ -145,6 +146,8 @@ void SimulatedMachine::processFrame (Frame frame, int ifaceIndex) {
     int rc = pthread_create(&thread, &attr, startParsing, (void*)(&arg));
     if (rc)
     	ERROR("failed creating new thread")
+
+
 }
 
 
@@ -269,12 +272,16 @@ void SimulatedMachine::run () {
 		}else if (command == "print"){
 			char succ_ip_str[INET_ADDRSTRLEN];
 			char pred_ip_str[INET_ADDRSTRLEN];
+			char mme_ip_str[INET_ADDRSTRLEN];
 			char finger_ip_str[INET_ADDRSTRLEN];
 			uint32 suc = htonl(successor.ip);
 			uint32 pred = htonl(predecessor.ip);
+			uint32 mme = htonl(me.ip);
 			inet_ntop(AF_INET, &suc ,succ_ip_str,sizeof(succ_ip_str));
 			inet_ntop(AF_INET, &pred ,pred_ip_str,sizeof(pred_ip_str));
+			inet_ntop(AF_INET, &mme ,mme_ip_str,sizeof(mme_ip_str));
 			LO
+			cout /*<< cyan(">Mymymymym IP:\t\t")*/ << mme_ip_str << endl;
 			cout << cyan(">Predecessor IP:\t") << pred_ip_str << endl;
 			cout << cyan(">Successor IP:\t\t") << succ_ip_str << endl;
 			cout << cyan(">Nodes in net:\t\t") << perceivedN << endl;

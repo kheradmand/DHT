@@ -202,7 +202,9 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			return sendDHTUpdate(1);
 		}
 	}else{ //deleted
-		if (init_ip == sm->getInterfaceIP(GATEWAY_IFACE)){
+		WARNING("received delete update")
+		delete_update_info = (pred_suc_info*)(frame.data);
+		if (init_ip == sm->me.ip){
 			WARNING("delete update packet circled successfully")
 			//elaat ro enteghal dade ghalan
 			//hala az in network kharej mishe;
@@ -215,19 +217,19 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			pred_suc_info pred_suc;
 			ntoh_pred_suc_info(&pred_suc, (pred_suc_info*)frame.data);
 
-			if (N==1){
-				sendDHTUpdate(0);
-				sm->predecessor.update(sm->me.ip, sm->me.port);
-				sm->successor.update(sm->me.ip, sm->me.port);
-			}else{
-				//check if pred
-				if (inRange(key, sm->predecessor.key, sm->me.key, E, E))
-					sm->predecessor.update(pred_suc.pred.ip.s_addr, pred_suc.pred.port);
-				//check if suc
-				if (inRange(key, sm->me.key, sm->successor.key, E, E))
-					sm->successor.update(pred_suc.suc.ip.s_addr, pred_suc.suc.port);
-			}
 
+			sendDHTUpdate(0);
+
+			//check if pred
+			if (N==1 || inRange(key, sm->predecessor.key, sm->me.key, I, E)){
+				ERROR("need to change pred")
+				sm->predecessor.update(pred_suc.pred.ip.s_addr, pred_suc.pred.port);
+			}
+			//check if suc
+			if (N==1 || inRange(key, sm->me.key, sm->successor.key, E, I)){
+				ERROR("nedd to change suc")
+				sm->successor.update(pred_suc.suc.ip.s_addr, pred_suc.suc.port);
+			}
 
 			//updateFingerHelperParameter param;
 			//param.pp = this;
@@ -236,10 +238,8 @@ bool PacketParser::parseDHTUpdate(Frame frame){
 			//if (rc)
 			//	RETURN("failed creating new thread",0)
 			updateFinger(N, 1);
-			if (N==1)
-				return 1;
-			else
-				return sendDHTUpdate(0);
+
+			return 1;
 		}
 	}
 	return 0;
@@ -334,12 +334,16 @@ bool PacketParser::sendDHTUpdate(bool added, bool init){
 	pred_suc_info* next;
 	if (!added){
 		next = (pred_suc_info*)(payload+sizeof(dht_hdr));
-		pred_suc_info info;
-		info.pred.ip.s_addr = sm->predecessor.ip;
-		info.suc.ip.s_addr = sm->successor.ip;
-		info.pred.port = sm->predecessor.port;
-		info.suc.port = sm->successor.port;
-		hton_pred_suc_info(next, &info);
+		if (init){
+			pred_suc_info info;
+			info.pred.ip.s_addr = sm->predecessor.ip;
+			info.suc.ip.s_addr = sm->successor.ip;
+			info.pred.port = sm->predecessor.port;
+			info.suc.port = sm->successor.port;
+			hton_pred_suc_info(next, &info);
+		}else{
+			memcpy(next, delete_update_info, sizeof(pred_suc_info));
+		}
 	}
 
 	fillDefaultDHTHeader(dht_header);
@@ -453,12 +457,13 @@ bool PacketParser::sendFrame(Frame frame){
 	LO
 	dumpPacket(frame, GATEWAY_IFACE, 1);
 	ULO
+
 	while (c-- && !sm->sendFrame(frame, GATEWAY_IFACE));
 	if (c>=0){
-		cout << green("packet sent successfully") << endl;
+		LO cout << green("packet sent successfully") << endl; ULO
 		return 1;
 	}else{
-		cout << red("packet send failed") << endl;
+		LO cout << red("packet send failed") << endl; ULO
 		return 0;
 
 	}
@@ -624,14 +629,18 @@ bool PacketParser::findSuccessor(byte* thekey, DHTNodeInfo whotoask, bool timed)
 		ERROR("loop!")
 		cont = 0;
 		if (timed){
+			LO cout << "sleeping timed" << endl; ULO
 			rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
+			LO cout << "wokeup timed" << endl; ULO
 			LO cout << "rc after time wait is " << rc << endl; ULO
 			if (rc == 22) {cont=1; continue;}
 			if (rc == 60) {WARNING("timeout") break;}
 			WARNING("first setting N "); LO cout << sm->perceivedN << endl; ULO
 			sm->perceivedN = sm->find_suc_N;
 		}else{
+			LO cout << "sleeping unlimite" << endl; ULO
 			rc = pthread_cond_wait(&sm->findSuc_cond, &sm->findSuc_lock);
+			LO cout << "wokeup unlimite" << endl; ULO
 			//rc = pthread_cond_timedwait(&sm->findSuc_cond, &sm->findSuc_lock, &t);
 			//if (rc == 22) {cont=1; continue;}
 			//if (rc == 60) {ERROR("timeout") break;}
@@ -697,7 +706,7 @@ bool PacketParser::dumpPacket(Frame frame,int interface,bool send){
 bool PacketParser::dumpEthernet(Frame frame){
 	int hlen = sizeof(sr_ethernet_hdr);
 	if ((int)frame.length<hlen)
-		RETURN("too small ethernet frame",0);
+		URETURN("too small ethernet frame",0);
 
 	sr_ethernet_hdr* header = (sr_ethernet_hdr*)(frame.data);
 	cout << bold(">Ethernet:") << endl;
@@ -720,7 +729,7 @@ bool PacketParser::dumpEthernet(Frame frame){
 	if (ether_type == ETHERTYPE_IP)
 		return dumpIPv4(payload);
 	else
-		RETURN("unexpected network layer protocol",0);
+		URETURN("unexpected network layer protocol",0);
 	return 0;
 
 }
@@ -731,7 +740,7 @@ bool PacketParser::dumpIPv4(Frame frame){
 	int hlen = sizeof(ip);
 	if ((int)frame.length < hlen){
 		cout << yellow("frame length is ") << frame.length << " expected " << hlen << endl;
-		RETURN("too small ip packet",0);
+		URETURN("too small ip packet",0);
 	}
 	ip* header = (ip*)frame.data;
 	//if (header->ip_tos != 4)
@@ -739,7 +748,7 @@ bool PacketParser::dumpIPv4(Frame frame){
 
 	if ((int)frame.length < ntohs(header->ip_len)){
 		cout << yellow("frame length is ") << frame.length << " expected " << ntohs(header->ip_len) << endl;
-		RETURN("too small ip packet",0);
+		URETURN("too small ip packet",0);
 	}
 
 	char from_ip[INET_ADDRSTRLEN],to_ip[INET_ADDRSTRLEN];
@@ -757,7 +766,7 @@ bool PacketParser::dumpIPv4(Frame frame){
 	if (header->ip_p == IPPROTO_UDP)
 		return dumpUDP(payload);
 	else {
-		RETURN("unsupported protocol number",1);
+		URETURN("unsupported protocol number",1);
 	}
 	return 0;
 
