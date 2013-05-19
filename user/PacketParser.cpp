@@ -349,6 +349,9 @@ bool PacketParser::parseDHTDNS(Frame frame){
 }
 
 void PacketParser::fillDefaultDHTHeader(dht_hdr* header,bool me){
+	byte dummy[DHT_KEY_SIZE];
+	if (!key)
+		key = dummy;
 	header->init_ip.s_addr = htonl(me ? sm->me.ip : init_ip);
 	header->init_port = htons(me ? sm->me.port : init_port);
 	memcpy(header->key, (me ? sm->me.key : key), DHT_KEY_SIZE);
