@@ -137,13 +137,13 @@ void SimulatedMachine::processFrame (Frame frame, int ifaceIndex) {
 	
     byte* copy = new byte[frame.length];
     memcpy(copy, frame.data, frame.length);
-    
-    pthread_t thread;
-    Frame packet(frame.length, copy);
-    startParsingArgument arg;
-    arg.sm = this;
-    arg.frame = &packet;
-    int rc = pthread_create(&thread, &attr, startParsing, (void*)(&arg));
+    Frame* packet = new Frame(frame.length, copy);
+    startParsingArgument* arg = new startParsingArgument;
+    pthread_t* thread = new pthread_t;
+
+    arg->sm = this;
+    arg->frame = packet;
+    int rc = pthread_create(thread, &attr, startParsing, (void*)(arg));
     if (rc)
     	ERROR("failed creating new thread")
 
