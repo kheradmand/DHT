@@ -607,6 +607,13 @@ bool PacketParser::DNSQuery(string& k){
 	*len = k.length();
 	memcpy(len+sizeof(byte), k.c_str(), k.length());
 
+	LO
+	cout << "coded packet is :";
+	for (int i=0;i<(int)k.length();i++)
+		cout << (char)len[i+1];
+	cout << endl;
+	ULO
+
 	return sendDHTPacket(frame, sm->find_suc_ans.suc.ip.s_addr , sm->find_suc_ans.suc.port);
 
 
