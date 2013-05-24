@@ -28,7 +28,7 @@ using namespace std;
 #define DHT_KEY_SIZE 20
 #define MAX_LOG_NODES 160
 
-#define WAIT_TIME 3
+#define WAIT_TIME 2
 
 #define E 0 //exclusive
 #define I 1 //inlcusive

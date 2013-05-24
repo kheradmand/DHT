@@ -196,7 +196,11 @@ struct dht_hdr{
 #define DHT_OPER_TRANSF		3
 #define	DHT_OPER_DNS		4
 
-
+struct dns_record
+{
+    uint32_t ip;    /* Ip */
+    uint8_t len;    /* Domain name length */
+}__attribute__ ((packed));
 
 
 //struct dht_update_hdr{

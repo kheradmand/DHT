@@ -106,10 +106,6 @@ private:
 
 };
 
-struct dns_record
-{
-    uint32_t ip;    /* Ip */
-    uint8_t len;    /* Domain name length */
-};
+
 
 #endif

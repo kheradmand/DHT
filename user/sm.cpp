@@ -34,6 +34,7 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <sstream>
+#include <errno.h>
 
 using namespace std;
 
@@ -297,6 +298,7 @@ void SimulatedMachine::run () {
 			string k;
 			commandstream >> k;
 			parser.DNSQuery(k);
+
 			if (!dns_found){
 				ERROR("\t>not found!")
 			}else{

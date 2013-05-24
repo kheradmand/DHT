@@ -282,17 +282,17 @@ bool PacketParser::parseDHTTransfer(Frame frame){
 
 		uint8_t count = *ptr;
 		ptr++;
-
+		LO cout << "count is " << (int)count << endl; ULO
 		for(uint i = 0; i < count; i++){
 			dns_record* record = (dns_record*) ptr;
 			uint32_t ip = ntohl(record->ip);
 
 			uint8_t len = record->len;
 			char buf[256];
-			memcpy(buf, record + sizeof(dns_record), len);
+			memcpy(buf, ptr + sizeof(dns_record), len);
 
 			string domain(buf);
-			LO cout << "adding " << domain << " " << ip << endl; ULO
+			LO cout << "adding len " << (int)len << "\"" << domain << "\" " << ip << endl; ULO
 			sm->dnsChache[domain] = ip;
 
 			ptr += sizeof(dns_record) + len;
@@ -326,11 +326,11 @@ bool PacketParser::parseDHTDNS(Frame frame){
 				sm->dns_found = 1;
 				uint32* ans = (uint32*)frame.data;
 				sm->dns_ans = ntohl(*ans);
-				LOCK(sm->dns_lock);
-				pthread_cond_wait(&sm->dns_cond, &sm->dns_lock);
-				UNLOCK(sm->dns_lock);
-				return 1;
 			}
+			LOCK(sm->dns_lock);
+			pthread_cond_signal(&sm->dns_cond);
+			UNLOCK(sm->dns_lock);
+			return 1;
 		}
 	}else{ //set
 		WARNING("dns set")
@@ -380,14 +380,14 @@ bool PacketParser::sendDHTFindSuccessorQuery(DHTNodeInfo target,bool init,byte* 
 
 	dht_hdr* dht_header = (dht_hdr*)payload;
 
-	fillDefaultDHTHeader(dht_header);
 	dht_header->control = htons(DHT_OPER_FIND_SUCC | DHT_QUERY);
 
 	if (init){
 		dht_header->init_ip.s_addr = htonl(sm->me.ip);
 		dht_header->init_port = htons(sm->me.port);
 		memcpy(dht_header->key, thekey, DHT_KEY_SIZE);
-	}
+	}else
+		fillDefaultDHTHeader(dht_header);
 
 	return sendDHTPacket(frame, target.ip, target.port);
 }
@@ -412,15 +412,15 @@ bool PacketParser::sendDHTUpdate(bool added, bool init){
 		}
 	}
 
-	fillDefaultDHTHeader(dht_header);
+	fillDefaultDHTHeader(dht_header, init);
 	dht_header->control = htons(DHT_OPER_UPDATE | (added? DHT_ADDED : 0));
 
-	if (init){
-		fillDefaultDHTHeader(dht_header, 1);
+//	if (init){
+//		fillDefaultDHTHeader(dht_header, 1);
 //		dht_header->init_ip.s_addr = htonl(sm->me.ip);
 //		dht_header->init_port = htons(sm->me.port);
 //		memcpy(dht_header->key, sm->me.key, DHT_KEY_SIZE);
-	}
+//	}
 
 	return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
 }
@@ -433,14 +433,19 @@ bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
 	byte temp[DHT_KEY_SIZE];
 	for (typeof(sm->dnsChache.begin()) i=sm->dnsChache.begin(); i!=sm->dnsChache.end();i++){
 		SHA1((unsigned char*)i->first.c_str(), i->first.length(), (unsigned char*)temp);
-		if (fromMetoSuc || inRange(temp, key, sm->me.key, I, E))
+		if (fromMetoSuc || inRange(temp, sm->predecessor.key, key, E, I)) //chon hanooz pred update nashode prede man dar vaghe prede tarafe!
 			transfers.push_back(i->first);
 	}
 
-	int size = 0;
+	int size = 1;
+
+	LO
+	cout << "transfers:" << endl;
 	for(uint i = 0; i < transfers.size(); i++){
+		cout << "will transfer " << transfers[i] << endl;
 		size += transfers[i].length() + 1 + sizeof(dns_record);
 	}
+	ULO
 
 	byte payload[sizeof(dht_hdr)+ size];
 	Frame frame(sizeof(payload),payload);
@@ -452,7 +457,7 @@ bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
 	fillDefaultDHTHeader(dht_header, 1);
 	dht_header->control = htons(DHT_OPER_TRANSF); //DHT_QUERy nist => asnwere
 
-	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
+	byte* ptr = payload + sizeof(dht_hdr);
 
 	// store number of records
 	uint8_t length = transfers.size();
@@ -469,7 +474,13 @@ bool PacketParser::sendDHTTransfer(bool fromMetoSuc){
 	}
 
 	//return sendDHTPacket(frame, sm->predecessor.ip, sm->predecessor.port);
-	return sendDHTPacket(frame, (fromMetoSuc? sm->successor.ip : init_ip), (fromMetoSuc? sm->successor.port : init_port));
+	sendDHTPacket(frame, (fromMetoSuc? sm->successor.ip : init_ip), (fromMetoSuc? sm->successor.port : init_port));
+
+	for (uint i=0;i<transfers.size();i++)
+		sm->dnsChache.erase(transfers[i]);
+
+	return 1;
+
 }
 
 bool PacketParser::sendDHTDNSSet(string& k, ip_t v){
@@ -484,15 +495,15 @@ bool PacketParser::sendDHTDNSSet(string& k, ip_t v){
 		UNLOCK(sm->findSuc_lock);
 	}
 
-	if (sm->perceivedN<2 || sm->perceivedN==1 || sm->find_suc_ans.suc.ip.s_addr == sm->me.ip){
+	if (sm->perceivedN<2 || sm->find_suc_ans.suc.ip.s_addr == sm->me.ip){
 		LO cout << "i am the owner of key no need to ask anybody in dns set -----" << endl; ULO
 		sm->dnsChache[k] = v;
 		return 1;
 	}
 
-
-
-	int size = k.length()+1+sizeof(dns_record);
+	ERROR("should save key remotely");
+	LO cout << "size of dns record is" << sizeof(dns_record) << endl; ULO
+	int size = k.length()+1+sizeof(dns_record)+1;
 
 	byte payload[sizeof(dht_hdr)+ size];
 	Frame frame(sizeof(payload),payload);
@@ -504,8 +515,10 @@ bool PacketParser::sendDHTDNSSet(string& k, ip_t v){
 	fillDefaultDHTHeader(dht_header, 1);
 	dht_header->control = htons(DHT_OPER_TRANSF); //DHT_QUERy nist => asnwere
 
-	byte* ptr = (byte*)dht_header + sizeof(dht_hdr);
-	dns_record* record = (dns_record*) ptr;
+	byte* ptr = payload + sizeof(dht_hdr);
+	*ptr = 1;
+	ptr++;
+	dns_record* record = (dns_record*) (ptr);
 	record->ip = htonl(v);
 	record->len = k.length() + 1;
 	memcpy(ptr + sizeof(dns_record), k.c_str(), k.length());
@@ -552,7 +565,7 @@ bool PacketParser::sendDHTDNSResponse(Frame frame){
 	char buf[256];
 	memcpy(buf, frame.data + sizeof(byte), len);
 	string domain(buf);
-	LO cout << "query is for  len" << len << " \"" << domain << "\"" << endl; ULO
+	LO cout << "query is for  len" << (int)len << " \"" << domain << "\"" << endl; ULO
 
 	if (sm->dnsChache.find(domain) == sm->dnsChache.end()){
 		ERROR("not found")
@@ -570,6 +583,7 @@ bool PacketParser::sendDHTDNSResponse(Frame frame){
 		fillDefaultDHTHeader(dht_header, 1);
 		dht_header->control = htons(DHT_OPER_DNS | DHT_GET); //dht get response
 		ip_t* ans = (ip_t*)(payload+sizeof(dht_hdr));
+		*ans = htonl(sm->dnsChache[domain]);
 		return sendDHTPacket(frame, init_ip, init_port);
 	}
 
@@ -587,7 +601,7 @@ bool PacketParser::DNSQuery(string& k){
 	}
 
 	if (sm->perceivedN<2 || sm->find_suc_ans.suc.ip.s_addr == sm->me.ip){
-		LO cout << "i am the owner of key no need to ask anybody" << endl; ULO
+		LO cout << magenta("i am the owner of key no need to ask anybody") << endl; ULO
 		if (sm->dnsChache.find(k)==sm->dnsChache.end())
 			sm->dns_found = 0;
 		else{
@@ -597,16 +611,16 @@ bool PacketParser::DNSQuery(string& k){
 		return 1;
 	}
 
-	byte payload[sizeof(dht_hdr)+sizeof(byte)+k.length()];
+	byte payload[sizeof(dht_hdr)+2*sizeof(byte)+k.length()];
 	Frame frame(sizeof(payload),payload);
 	dht_hdr* dht_header = (dht_hdr*)payload;
 	fillDefaultDHTHeader(dht_header, 1);
 	dht_header->control = htons(DHT_OPER_DNS | DHT_GET | DHT_QUERY); //dns get query
 
 	byte* len = (byte*)(payload+sizeof(dht_hdr));
-	*len = k.length();
+	*len = k.length()+1; //baraye null
 	memcpy(len+sizeof(byte), k.c_str(), k.length());
-
+	*(len+sizeof(byte)+k.length()) = '\0';
 	LO
 	cout << "coded packet is :";
 	for (int i=0;i<(int)k.length();i++)
@@ -614,7 +628,27 @@ bool PacketParser::DNSQuery(string& k){
 	cout << endl;
 	ULO
 
-	return sendDHTPacket(frame, sm->find_suc_ans.suc.ip.s_addr , sm->find_suc_ans.suc.port);
+
+	LOCK(sm->dns_lock);
+	while(1){
+		LO cout << "sending dns query packet " << endl; ULO
+		sendDHTPacket(frame, sm->find_suc_ans.suc.ip.s_addr , sm->find_suc_ans.suc.port);
+
+		timeval now;
+		gettimeofday(&now, NULL);
+		timespec t;
+		t.tv_sec = now.tv_sec + WAIT_TIME*2;
+		t.tv_nsec = 0;
+
+		LO cout << "conditional timed wait for dns response" << endl; ULO
+		int rc = pthread_cond_timedwait(&sm->dns_cond, &sm->dns_lock, &t);
+		if (rc == EINVAL) {ERROR("dns ival, retry"); continue;}
+		if (rc == ETIMEDOUT) {ERROR("dns timeout, retry"); continue;}
+		break;
+	}
+	UNLOCK(sm->dns_lock);
+
+	return 1;
 
 
 }
