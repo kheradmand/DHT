@@ -552,7 +552,7 @@ bool PacketParser::sendDHTDNSResponse(Frame frame){
 	char buf[256];
 	memcpy(buf, frame.data + sizeof(byte), len);
 	string domain(buf);
-	LO cout << "query is for  " << domain << endl; ULO
+	LO cout << "query is for  len" << len << " \"" << domain << "\"" << endl; ULO
 
 	if (sm->dnsChache.find(domain) == sm->dnsChache.end()){
 		ERROR("not found")
