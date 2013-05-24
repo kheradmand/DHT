@@ -325,8 +325,8 @@ void SimulatedMachine::run () {
 				cout << "\t" << i << ":\t" << finger_ip_str << "\t" << finger[i].port << endl;
 			}
 			cout << cyan(">DNS table:") << endl;
-//			for (typeof(dnsChache.begin()) i=dnsChache.begin();i!=dnsChache.end();i++)
-//				cout << "\t" << i->first << "\t\t" << i->second << endl;
+			for (typeof(dnsChache.begin()) i=dnsChache.begin();i!=dnsChache.end();i++)
+				cout << "\t" << i->first << "\t\t" << i->second << endl;
 			ULO
 		}else{
 			cout << red("unsupported command") << endl;	

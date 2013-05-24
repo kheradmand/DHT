@@ -576,7 +576,7 @@ bool PacketParser::sendDHTDNSResponse(Frame frame){
 }
 
 bool PacketParser::DNSQuery(string& k){
-	LO cout << "want to send a dns query" << endl; ULO
+	LO cout << "want to send a dns query for " << k << endl; ULO
 	byte sha[DHT_KEY_SIZE];
 	SHA1((unsigned char*)k.c_str(), k.length(), (unsigned char*)sha);
 
