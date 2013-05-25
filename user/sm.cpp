@@ -234,8 +234,9 @@ void SimulatedMachine::run () {
 				LOCK(inNetwork_lock)
 				inNetwork = 1;
 				UNLOCK(inNetwork_lock);
-				finger.resize(1);
-				finger[0].update(me.ip, me.port);
+				parser.updateFinger(1);
+				//finger.resize(1);
+				//finger[0].update(me.ip, me.port);
 			}
 			WARNING("node joined DHT network");
 		}else if (command == "leave"){

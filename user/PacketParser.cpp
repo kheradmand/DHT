@@ -794,59 +794,83 @@ void PacketParser::updateFinger(uint32 n, bool deleted){
 	if (n == 0){
 		return;
 	}
-	int m = log2((double)n);
-	LO cout << "aakala " << sm->finger.size() << endl; ULO
-	int lastSize = sm->finger.size();
-	sm->finger.resize(m+1);
+	int size = 160;
+	sm->finger.resize(size);
 	sm->finger[0].update(sm->successor.ip, sm->successor.port);
-
 	if (n==1){
-		for (int i=0;i<(int)sm->finger.size();i++)
+		for (int i=0;i<size;i++)
 			sm->finger[i].update(sm->me.ip, sm->me.port);
-		//pthread_exit(NULL);
 		return;
 	}
-
-	int mn = min(m, lastSize);
-	LO cout << " mn " << mn << " m " << m  << "!" << endl; ULO
-	for (int i=0;i<mn-1;i++){
-		LO cout << "kkkkkkkkkkkk" << endl; ULO
+	for (int i=0;i<size-1;i++){
+		LO cout << "updating finger " << i+1 << endl; ULO
 		if (inRange(getFingerStart(i+1), sm->me.key, sm->finger[i].key, I, E) &&
 				(!deleted || memcmp(sm->finger[i].key, key/*kare khatarnakie!*/, DHT_KEY_SIZE)!=0)){
 			LO cout << "figer " << i << " is aprop for " << i+1 << endl; ULO
 			sm->finger[i+1].update(sm->finger[i].ip, sm->finger[i].port);
 		}else{
 			LO cout << "figer " << i << " is NOTOTOTOO aprop for " << i+1 << endl; ULO
-			//bool ret = findSuccessor(getFingerStart(i+1), sm->successor);
-			//if (!ret)
-			//	ERROR("finding successor in finger update failed")
-			//else
 			while(!findSuccessor(getFingerStart(i+1), sm->successor)){
 				UNLOCK(sm->findSuc_lock);
 				ERROR("==========================================")
 			}
 			sm->finger[i+1].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
 			UNLOCK(sm->findSuc_lock);
-
-
 		}
 	}
-	LO cout << "what the " << endl; ULO
-	for (int i=mn;i<(int)sm->finger.size();i++){
-		LO cout << "kkkkkasasasaskkkkkkk" << i << endl; cout << flush; ULO
-		//bool ret = findSuccessor(getFingerStart(i), sm->successor);
-		//if (!ret)
-		//	ERROR("finding successor in finger update failed")
-		//else
-		while(!findSuccessor(getFingerStart(i), sm->successor)){
-			UNLOCK(sm->findSuc_lock);
-			ERROR("==========================================")
-		}
-		sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
-		UNLOCK(sm->findSuc_lock);
-	}
-	ERROR("update finger finished")
-	//pthread_exit(NULL);
+//	int m = log2((double)n);
+//	LO cout << "aakala " << sm->finger.size() << endl; ULO
+//	int lastSize = sm->finger.size();
+//	sm->finger.resize(m+1);
+//	sm->finger[0].update(sm->successor.ip, sm->successor.port);
+//
+//	if (n==1){
+//		for (int i=0;i<(int)sm->finger.size();i++)
+//			sm->finger[i].update(sm->me.ip, sm->me.port);
+//		//pthread_exit(NULL);
+//		return;
+//	}
+//
+//	int mn = min(m, lastSize);
+//	LO cout << " mn " << mn << " m " << m  << "!" << endl; ULO
+//	for (int i=0;i<mn-1;i++){
+//		LO cout << "kkkkkkkkkkkk" << endl; ULO
+//		if (inRange(getFingerStart(i+1), sm->me.key, sm->finger[i].key, I, E) &&
+//				(!deleted || memcmp(sm->finger[i].key, key/*kare khatarnakie!*/, DHT_KEY_SIZE)!=0)){
+//			LO cout << "figer " << i << " is aprop for " << i+1 << endl; ULO
+//			sm->finger[i+1].update(sm->finger[i].ip, sm->finger[i].port);
+//		}else{
+//			LO cout << "figer " << i << " is NOTOTOTOO aprop for " << i+1 << endl; ULO
+//			//bool ret = findSuccessor(getFingerStart(i+1), sm->successor);
+//			//if (!ret)
+//			//	ERROR("finding successor in finger update failed")
+//			//else
+//			while(!findSuccessor(getFingerStart(i+1), sm->successor)){
+//				UNLOCK(sm->findSuc_lock);
+//				ERROR("==========================================")
+//			}
+//			sm->finger[i+1].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
+//			UNLOCK(sm->findSuc_lock);
+//
+//
+//		}
+//	}
+//	LO cout << "what the " << endl; ULO
+//	for (int i=mn;i<(int)sm->finger.size();i++){
+//		LO cout << "kkkkkasasasaskkkkkkk" << i << endl; cout << flush; ULO
+//		//bool ret = findSuccessor(getFingerStart(i), sm->successor);
+//		//if (!ret)
+//		//	ERROR("finding successor in finger update failed")
+//		//else
+//		while(!findSuccessor(getFingerStart(i), sm->successor)){
+//			UNLOCK(sm->findSuc_lock);
+//			ERROR("==========================================")
+//		}
+//		sm->finger[i].update(sm->find_suc_ans.suc.ip.s_addr, sm->find_suc_ans.suc.port);
+//		UNLOCK(sm->findSuc_lock);
+//	}
+//	ERROR("update finger finished")
+//	//pthread_exit(NULL);
 }
 
 //in tabe vaghti barmigarde findSuc_lock lock hastesh
